@@ -75,7 +75,7 @@ contract Cat is DSNote {
     VowLike public vow;
 
     // --- Events ---
-    event Bite(
+    event LiquidateCdp(
       bytes32 indexed ilk,
       address indexed urn,
       uint256 ink,
@@ -84,7 +84,7 @@ contract Cat is DSNote {
       uint256 flip
     );
 
-    event FlipKick(
+    event FlipStartAuction(
       uint256 nflip,
       uint256 bid
     );
@@ -136,7 +136,7 @@ contract Cat is DSNote {
 
         flips[nflip] = Flip(ilk, urn, u.ink, tab);
 
-        emit Bite(ilk, urn, u.ink, u.art, tab, nflip);
+        emit LiquidateCdp(ilk, urn, u.ink, u.art, tab, nflip);
 
         return nflip++;
     }
@@ -160,6 +160,6 @@ contract Cat is DSNote {
                                          , lot: ink
                                          , bid: 0
                                          });
-        emit FlipKick(n, id);
+        emit FlipStartAuction(n, id);
     }
 }

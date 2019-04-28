@@ -369,7 +369,7 @@ contract JoinTest is DSTest {
     }
 }
 
-contract BiteTest is DSTest {
+contract LiquidateCdpTest is DSTest {
     Hevm hevm;
 
     TestVat vat;

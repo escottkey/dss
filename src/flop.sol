@@ -66,7 +66,7 @@ contract MkrForDaiDebtAuction is DSNote {
     uint256  public startAuctions = 0;
 
     // --- Events ---
-    event Kick(
+    event StartAuction(
       uint256 id,
       uint256 lot,
       uint256 bid,
@@ -99,7 +99,7 @@ contract MkrForDaiDebtAuction is DSNote {
         bids[id].highBidder = incomeRecipient;
         bids[id].auctionEndTimestamp = add(uint48(now), maximumAuctionDuration);
 
-        emit Kick(id, lot, bid, incomeRecipient);
+        emit StartAuction(id, lot, bid, incomeRecipient);
     }
     function makeBidDecreaseLotSize(uint id, uint lot, uint bid) public note {
         require(bids[id].highBidder != address(0));

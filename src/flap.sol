@@ -60,7 +60,7 @@ contract DaiForMkrSurplusAuction is DSNote {
     uint256  public startAuctions = 0;
 
     // --- Events ---
-    event Kick(
+    event StartAuction(
       uint256 id,
       uint256 lot,
       uint256 bid,
@@ -96,7 +96,7 @@ contract DaiForMkrSurplusAuction is DSNote {
 
         dai.move(msg.sender, address(this), lot);
 
-        emit Kick(id, lot, bid, incomeRecipient);
+        emit StartAuction(id, lot, bid, incomeRecipient);
     }
     function makeBidIncreaseBidSize(uint id, uint lot, uint bid) public note {
         require(bids[id].highBidder != address(0));

@@ -50,6 +50,7 @@ drip -> increaseStabilityFee: determine the increase
 chop -> liquidationPenalty: the liquidation penalty
 lump -> liquidationQuantity: the liquidation quantity, i.e. the fixed debt quantity to be covered by any one liquidation event
 bite -> liquidateCdp: initiate liquidation of a CDP
+Bite -> LiquidateCdp
 [DUPLICATE/NOT UPDATED] flip -> liquidateCdpCollateralForDai: liquidate collateral from a CDP to cover a fixed quantity of debt
 [NOT UPDATED] sin -> debtQueue: the debt queue
 Sin -> TotalDebtInDebtQueue: the total debt in the queue
@@ -81,6 +82,7 @@ beg -> minimumBidIncrease: minimum bid increase
 tau -> maximumAuctionDuration: maximum auction duration
 end -> auctionEndTimestamp: when the auction will finish
 kick -> startAuction: start an auction
+Kick -> StartAuction
 tick -> restartAuction: restart an auction
 tend -> makeBidIncreaseBidSize: make a bid, increasing the bid size
 dent -> makeBidDecreaseLotSize: make a bid, decreaseing the lot size

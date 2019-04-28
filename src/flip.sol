@@ -63,7 +63,7 @@ contract CollateralForDaiAuction is DSNote {
     uint256 public startAuctions = 0;
 
     // --- Events ---
-    event Kick(
+    event StartAuction(
       uint256 id,
       uint256 lot,
       uint256 bid,
@@ -103,7 +103,7 @@ contract CollateralForDaiAuction is DSNote {
 
         vat.flux(ilk, msg.sender, address(this), lot);
 
-        emit Kick(id, lot, bid, tab, urn, incomeRecipient);
+        emit StartAuction(id, lot, bid, tab, urn, incomeRecipient);
     }
     function restartAuction(uint id) public note {
         require(bids[id].auctionEndTimestamp < now);
