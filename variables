@@ -1,9 +1,10 @@
-guy: some address
+[DUPLICATE] guy: some address
 wad: some quantity of tokens
 ray: a fixed point integer, usually given by 10^27 decimal places.
+rad: ?
 file: administer some configuration value
 auth: check whether an address can call this method
-ward: an ahttps://github.com/joeykrug/dssddress that is allowed to call authed methods
+ward: an address that is allowed to call authed methods
 rely: allow an address to call authed methods
 deny: disallow an address from calling authed methods
 CDP: Collateralised Debt Position
@@ -38,46 +39,55 @@ draw: increase CDP debt, creating Dai
 wipe: decrease CDP debt, destroying Dai
 dink: change in collateral
 dart: change in debt
-calm: true when the CDP remains under both collateral and total debt ceilings
-cool: true when the stablecoin debt does not increase
-firm: true when the collateral balance does not decrease
-safe: true when the CDP's ratio of collateral to debt is above the collateral's liquidation ratio
-tax: the stability fee
-repo: global stability fee
-rho: when this collateral type was last collected from
-drip: determine the increase
-chop: the liquidation penalty
-lump: the liquidation quantity, i.e. the fixed debt quantity to be covered by any one liquidation event
-bite: initiate liquidation of a CDP
-flip: liquidate collateral from a CDP to cover a fixed quantity of debt
-sin: the debt queue
-Sin: the total debt in the queue
-Woe: the total non-queued non-auction debt
-Ash: the total on-auction debt
-Awe: the total debt
-Joy: the total surplus
-fess: add debt to the queue
-flog: realise debt from the queue
-wait: length of the queue
-heal: cancel out surplus and debt
-kiss: cancel out surplus and on-auction debt
-sump: debt auction lot size, i.e. the fixed debt quantity to be covered by any one debt auction
-bump: surplus auction lot size, i.e. the fixed surplus quantity to be sold by any one surplus auction
-hump: surplus buffer, must be exceeded before surplus auctions are possible
-flip: collateral auction (selling collateral for stablecoins)
-flop: debt auction (covering debt by inflating MKR and selling for stablecoins)
-flap: surplus auction (selling stablecoins for MKR)
+calm -> isCdpBelowCollateralAndTotalDebtCeilings: true when the CDP remains under both collateral and total debt ceilings
+cool -> isCdpDaiDebtNonIncreasing: true when the stablecoin debt does not increase
+firm -> isCdpCollateralBalanceNonDecreasing: true when the collateral balance does not decrease
+safe -> isCdpSafe: true when the CDP's ratio of collateral to debt is above the collateral's liquidation ratio
+[UNUSED] tax -> stabilityFee: the stability fee
+[UNUSED] repo -> globalStabilityFee: global stability fee
+rho -> collateralTypeLastStabilityFeeCollectionTimestamp: when this collateral type was last collected from
+drip -> increaseStabilityFee: determine the increase
+chop -> liquidationPenalty: the liquidation penalty
+lump -> liquidationQuantity: the liquidation quantity, i.e. the fixed debt quantity to be covered by any one liquidation event
+bite -> liquidateCdp: initiate liquidation of a CDP
+[DUPLICATE/NOT UPDATED] flip -> liquidateCdpCollateralForDai: liquidate collateral from a CDP to cover a fixed quantity of debt
+[NOT UPDATED] sin -> debtQueue: the debt queue
+Sin -> TotalDebtInDebtQueue: the total debt in the queue
+Woe -> TotalNonQueuedNonAuctionDebt: the total non-queued non-auction debt
+Ash -> TotalOnAuctionDebt: the total on-auction debt
+Awe -> TotalDebt: the total debt
+Joy -> TotalSurplus: the total surplus
+fess -> addDebtToDebtQueue: add debt to the queue
+flog -> removeDebtFromDebtQueue: realise debt from the queue
+wait -> debtQueueLength: length of the queue
+heal -> settleDebtUsingSurplus: cancel out surplus and debt
+kiss -> settleOnAuctionDebtUsingSurplus: cancel out surplus and on-auction debt
+sump -> debtAuctionLotSize: debt auction lot size, i.e. the fixed debt quantity to be covered by any one debt auction
+bump -> surplusAuctionLotSize: surplus auction lot size, i.e. the fixed surplus quantity to be sold by any one surplus auction
+hump -> surplusAuctionBuffer: surplus buffer, must be exceeded before surplus auctions are possible
+[DUPLICATE/NOT UPDATED] flip -> collateralForDaiAuction: collateral auction (selling collateral for stablecoins)
+Flipper -> CollateralForDaiAuction
+flop -> mkrForDaiDebtAuction: debt auction (covering debt by inflating MKR and selling for stablecoins)
+Flopper -> MkrForDaiDebtAuction
+flap -> daiForMkrSurplusAuction: surplus auction (selling stablecoins for MKR)
+Flapper -> DaiForMkrSurplusAuction
 lot: quantity up for auction
 bid: quantity being offered for the lot
-tab: total dai to be raised (in flip auction)
-guy: high bidder
-gal: recipient of auction income
+tab -> totalDaiWanted: total dai to be raised (in flip auction)
+[DUPLICATE] guy -> highBidder: high bidder
+gal -> incomeRecipient: recipient of auction income
 ttl: bid lifetime
-beg: minimum bid increase
-tau: maximum auction duration
-end: when the auction will finish
-kick: start an auction
-tick: restart an auction
-tend: make a bid, increasing the bid size
-dent: make a bid, decreaseing the lot size
-deal: claim a winning bid
+beg -> minimumBidIncrease: minimum bid increase
+tau -> maximumAuctionDuration: maximum auction duration
+end -> auctionEndTimestamp: when the auction will finish
+kick -> startAuction: start an auction
+tick -> restartAuction: restart an auction
+tend -> makeBidIncreaseBidSize: make a bid, increasing the bid size
+dent -> makeBidDecreaseLotSize: make a bid, decreaseing the lot size
+deal -> claimWinningBid: claim a winning bid
+[NOT UPDATED] vat -> maybe cdpDatabase?
+VatLike -> ?
+[NOT UPDATED] jug -> maybe cdpDatabaseWithStabilityFeeCollection?
+Fusspot -> ?
+Hopeful -> ?
+Vow -> ?
