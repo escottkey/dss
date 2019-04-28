@@ -20,7 +20,7 @@ pragma solidity >=0.5.0;
 import "./lib.sol";
 
 contract Fusspot {
-    function kick(address gal, uint lot, uint bid) public returns (uint);
+    function startAuction(address gal, uint lot, uint bid) public returns (uint);
     function dai() public returns (address);
 }
 
@@ -32,7 +32,7 @@ contract Hopeful {
 contract VatLike {
     function dai (address) public view returns (uint);
     function sin (address) public view returns (uint);
-    function heal(address,address,int) public;
+    function settleDebtUsingSurplus(address,address,int) public;
 }
 
 contract Vow is DSNote {
@@ -45,17 +45,17 @@ contract Vow is DSNote {
 
     // --- Data ---
     address public vat;
-    address public cow;  // flapper
-    address public row;  // flopper
+    address public cow;  // surplus auctioner
+    address public row;  // debt auctioner
 
     mapping (uint48 => uint256) public sin; // debt queue
-    uint256 public Sin;   // queued debt          [rad]
-    uint256 public Ash;   // on-auction debt      [rad]
+    uint256 public TotalDebtInQueue;   // queued debt          [rad]
+    uint256 public TotalOnAuctionDebt;   // on-auction debt      [rad]
 
-    uint256 public wait;  // flop delay           [rad]
-    uint256 public sump;  // flop fixed lot size  [rad]
-    uint256 public bump;  // flap fixed lot size  [rad]
-    uint256 public hump;  // surplus buffer       [rad]
+    uint256 public debtQueueLength;  // debt auction delay           [rad]
+    uint256 public debtAuctionLotSize;  // debt auction (MKR-for-DAI) fixed lot size  [rad]
+    uint256 public surplusAuctionLotSize;  // surplus auction (DAI-for-MKR) fixed lot size  [rad]
+    uint256 public surplusAuctionBuffer;  // surplus buffer       [rad]
 
     // --- Init ---
     constructor() public { wards[msg.sender] = 1; }
@@ -73,68 +73,68 @@ contract Vow is DSNote {
 
     // --- Administration ---
     function file(bytes32 what, uint data) public note auth {
-        if (what == "wait") wait = data;
-        if (what == "bump") bump = data;
-        if (what == "sump") sump = data;
-        if (what == "hump") hump = data;
+        if (what == "debtQueueLength") debtQueueLength = data;
+        if (what == "surplusAuctionLotSize") surplusAuctionLotSize = data;
+        if (what == "debtAuctionLotSize") debtAuctionLotSize = data;
+        if (what == "surplusAuctionBuffer") surplusAuctionBuffer = data;
     }
     function file(bytes32 what, address addr) public note auth {
-        if (what == "flap") cow = addr;
-        if (what == "flop") row = addr;
+        if (what == "daiForMkrSurplusAuction") cow = addr;
+        if (what == "mkrForDaiDebtAuction") row = addr;
         if (what == "vat")  vat = addr;
     }
 
     // Total deficit
-    function Awe() public view returns (uint) {
+    function TotalDebt() public view returns (uint) {
         return uint(VatLike(vat).sin(address(this)));
     }
     // Total surplus
-    function Joy() public view returns (uint) {
+    function TotalSurplus() public view returns (uint) {
         return uint(VatLike(vat).dai(address(this)));
     }
     // Unqueued, pre-auction debt
-    function Woe() public view returns (uint) {
-        return sub(sub(Awe(), Sin), Ash);
+    function TotalNonQueuedNonAuctionDebt() public view returns (uint) {
+        return sub(sub(TotalDebt(), TotalDebtInQueue), TotalOnAuctionDebt);
     }
 
     // Push to debt-queue
-    function fess(uint tab) public note auth {
+    function addDebtToDebtQueue(uint tab) public note auth {
         sin[uint48(now)] = add(sin[uint48(now)], tab);
-        Sin = add(Sin, tab);
+        TotalDebtInQueue = add(TotalDebtInQueue, tab);
     }
     // Pop from debt-queue
-    function flog(uint48 era) public note {
-        require(add(era, wait) <= now);
-        Sin = sub(Sin, sin[era]);
+    function removeDebtFromDebtQueue(uint48 era) public note {
+        require(add(era, debtQueueLength) <= now);
+        TotalDebtInQueue = sub(TotalDebtInQueue, sin[era]);
         sin[era] = 0;
     }
 
     // Debt settlement
-    function heal(uint rad) public note {
-        require(rad <= Joy() && rad <= Woe());
+    function settleDebtUsingSurplus(uint rad) public note {
+        require(rad <= TotalSurplus() && rad <= TotalNonQueuedNonAuctionDebt());
         require(int(rad) >= 0);
-        VatLike(vat).heal(address(this), address(this), int(rad));
+        VatLike(vat).settleDebtUsingSurplus(address(this), address(this), int(rad));
     }
-    function kiss(uint rad) public note {
-        require(rad <= Ash && rad <= Joy());
-        Ash = sub(Ash, rad);
+    function settleOnAuctionDebtUsingSurplus(uint rad) public note {
+        require(rad <= TotalOnAuctionDebt && rad <= TotalSurplus());
+        TotalOnAuctionDebt = sub(TotalOnAuctionDebt, rad);
         require(int(rad) >= 0);
-        VatLike(vat).heal(address(this), address(this), int(rad));
+        VatLike(vat).settleDebtUsingSurplus(address(this), address(this), int(rad));
     }
 
     // Debt auction
-    function flop() public returns (uint id) {
-        require(Woe() >= sump);
-        require(Joy() == 0);
-        Ash = add(Ash, sump);
-        return Fusspot(row).kick(address(this), uint(-1), sump);
+    function auctionMkrForDai() public returns (uint id) {
+        require(TotalNonQueuedNonAuctionDebt() >= debtAuctionLotSize);
+        require(TotalSurplus() == 0);
+        TotalOnAuctionDebt = add(TotalOnAuctionDebt, debtAuctionLotSize);
+        return Fusspot(row).startAuction(address(this), uint(-1), debtAuctionLotSize);
     }
     // Surplus auction
-    function flap() public returns (uint id) {
-        require(Joy() >= add(add(Awe(), bump), hump));
-        require(Woe() == 0);
+    function auctionDaiForMkr() public returns (uint id) {
+        require(TotalSurplus() >= add(add(TotalDebt(), surplusAuctionLotSize), surplusAuctionBuffer));
+        require(TotalNonQueuedNonAuctionDebt() == 0);
         Hopeful(Fusspot(cow).dai()).hope(cow);
-        id = Fusspot(cow).kick(address(0), bump, 0);
+        id = Fusspot(cow).startAuction(address(0), surplusAuctionLotSize, 0);
         Hopeful(Fusspot(cow).dai()).nope(cow);
     }
 }

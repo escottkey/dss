@@ -4,51 +4,51 @@ import "ds-test/test.sol";
 import {DSToken} from "ds-token/token.sol";
 
 import {Vat}     from "../vat.sol";
-import {Flipper} from "../flip.sol";
+import {CollateralForDaiAuction} from "../flip.sol";
 
 contract Hevm {
     function warp(uint256) public;
 }
 
 contract Guy {
-    Flipper flip;
-    constructor(Flipper flip_) public {
+    CollateralForDaiAuction flip;
+    constructor(CollateralForDaiAuction flip_) public {
         flip = flip_;
     }
     function hope(address usr) public {
         Vat(address(flip.vat())).hope(usr);
     }
-    function tend(uint id, uint lot, uint bid) public {
-        flip.tend(id, lot, bid);
+    function makeBidIncreaseBidSize(uint id, uint lot, uint bid) public {
+        flip.makeBidIncreaseBidSize(id, lot, bid);
     }
-    function dent(uint id, uint lot, uint bid) public {
-        flip.dent(id, lot, bid);
+    function makeBidDecreaseLotSize(uint id, uint lot, uint bid) public {
+        flip.makeBidDecreaseLotSize(id, lot, bid);
     }
-    function deal(uint id) public {
-        flip.deal(id);
+    function claimWinningBid(uint id) public {
+        flip.claimWinningBid(id);
     }
-    function try_tend(uint id, uint lot, uint bid)
+    function try_makeBidIncreaseBidSize(uint id, uint lot, uint bid)
         public returns (bool ok)
     {
-        string memory sig = "tend(uint256,uint256,uint256)";
+        string memory sig = "makeBidIncreaseBidSize(uint256,uint256,uint256)";
         (ok,) = address(flip).call(abi.encodeWithSignature(sig, id, lot, bid));
     }
-    function try_dent(uint id, uint lot, uint bid)
+    function try_makeBidDecreaseLotSize(uint id, uint lot, uint bid)
         public returns (bool ok)
     {
-        string memory sig = "dent(uint256,uint256,uint256)";
+        string memory sig = "makeBidDecreaseLotSize(uint256,uint256,uint256)";
         (ok,) = address(flip).call(abi.encodeWithSignature(sig, id, lot, bid));
     }
-    function try_deal(uint id)
+    function try_claimWinningBid(uint id)
         public returns (bool ok)
     {
-        string memory sig = "deal(uint256)";
+        string memory sig = "claimWinningBid(uint256)";
         (ok,) = address(flip).call(abi.encodeWithSignature(sig, id));
     }
-    function try_tick(uint id)
+    function try_restartAuction(uint id)
         public returns (bool ok)
     {
-        string memory sig = "tick(uint256)";
+        string memory sig = "restartAuction(uint256)";
         (ok,) = address(flip).call(abi.encodeWithSignature(sig, id));
     }
 }
@@ -76,7 +76,7 @@ contract FlipTest is DSTest {
     Hevm hevm;
 
     Vat_    vat;
-    Flipper flip;
+    CollateralForDaiAuction flip;
 
     address ali;
     address bob;
@@ -92,7 +92,7 @@ contract FlipTest is DSTest {
         vat.init("gems");
         vat.set_ilk("gems");
 
-        flip = new Flipper(address(vat), "gems");
+        flip = new CollateralForDaiAuction(address(vat), "gems");
 
         ali = address(new Guy(flip));
         bob = address(new Guy(flip));
@@ -106,33 +106,33 @@ contract FlipTest is DSTest {
         vat.mint(ali, 200 ether);
         vat.mint(bob, 200 ether);
     }
-    function test_kick() public {
-        flip.kick({ lot: 100 ether
+    function test_startAuction() public {
+        flip.startAuction({ lot: 100 ether
                   , tab: 50 ether
                   , urn: urn
                   , gal: gal
                   , bid: 0
                   });
     }
-    function testFail_tend_empty() public {
-        // can't tend on non-existent
-        flip.tend(42, 0, 0);
+    function testFail_makeBidIncreaseBidSize_empty() public {
+        // can't makeBidIncreaseBidSize on non-existent
+        flip.makeBidIncreaseBidSize(42, 0, 0);
     }
-    function test_tend() public {
-        uint id = flip.kick({ lot: 100 ether
+    function test_makeBidIncreaseBidSize() public {
+        uint id = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
                             , bid: 0
                             });
 
-        Guy(ali).tend(id, 100 ether, 1 ether);
+        Guy(ali).makeBidIncreaseBidSize(id, 100 ether, 1 ether);
         // bid taken from bidder
         assertEq(vat.dai_balance(ali),   199 ether);
         // gal receives payment
         assertEq(vat.dai_balance(gal),     1 ether);
 
-        Guy(bob).tend(id, 100 ether, 2 ether);
+        Guy(bob).makeBidIncreaseBidSize(id, 100 ether, 2 ether);
         // bid taken from bidder
         assertEq(vat.dai_balance(bob), 198 ether);
         // prev bidder refunded
@@ -141,12 +141,12 @@ contract FlipTest is DSTest {
         assertEq(vat.dai_balance(gal),   2 ether);
 
         hevm.warp(5 hours);
-        Guy(bob).deal(id);
+        Guy(bob).claimWinningBid(id);
         // bob gets the winnings
         assertEq(vat.gem_balance(bob), 100 ether);
     }
-    function test_tend_later() public {
-        uint id = flip.kick({ lot: 100 ether
+    function test_makeBidIncreaseBidSize_later() public {
+        uint id = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
@@ -154,51 +154,51 @@ contract FlipTest is DSTest {
                             });
         hevm.warp(5 hours);
 
-        Guy(ali).tend(id, 100 ether, 1 ether);
+        Guy(ali).makeBidIncreaseBidSize(id, 100 ether, 1 ether);
         // bid taken from bidder
         assertEq(vat.dai_balance(ali), 199 ether);
         // gal receives payment
         assertEq(vat.dai_balance(gal),   1 ether);
     }
-    function test_dent() public {
-        uint id = flip.kick({ lot: 100 ether
+    function test_makeBidDecreaseLotSize() public {
+        uint id = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
                             , bid: 0
                             });
-        Guy(ali).tend(id, 100 ether,  1 ether);
-        Guy(bob).tend(id, 100 ether, 50 ether);
+        Guy(ali).makeBidIncreaseBidSize(id, 100 ether,  1 ether);
+        Guy(bob).makeBidIncreaseBidSize(id, 100 ether, 50 ether);
 
-        Guy(ali).dent(id,  95 ether, 50 ether);
+        Guy(ali).makeBidDecreaseLotSize(id,  95 ether, 50 ether);
         // plop the gems
         assertEq(vat.gem_balance(address(0xacab)), 5 ether);
         assertEq(vat.dai_balance(ali),  150 ether);
         assertEq(vat.dai_balance(bob),  200 ether);
     }
     function test_beg() public {
-        uint id = flip.kick({ lot: 100 ether
+        uint id = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
                             , bid: 0
                             });
-        assertTrue( Guy(ali).try_tend(id, 100 ether, 1.00 ether));
-        assertTrue(!Guy(bob).try_tend(id, 100 ether, 1.01 ether));
+        assertTrue( Guy(ali).try_makeBidIncreaseBidSize(id, 100 ether, 1.00 ether));
+        assertTrue(!Guy(bob).try_makeBidIncreaseBidSize(id, 100 ether, 1.01 ether));
         // high bidder is subject to beg
-        assertTrue(!Guy(ali).try_tend(id, 100 ether, 1.01 ether));
-        assertTrue( Guy(bob).try_tend(id, 100 ether, 1.07 ether));
+        assertTrue(!Guy(ali).try_makeBidIncreaseBidSize(id, 100 ether, 1.01 ether));
+        assertTrue( Guy(bob).try_makeBidIncreaseBidSize(id, 100 ether, 1.07 ether));
 
         // can bid by less than beg at flip
-        assertTrue( Guy(ali).try_tend(id, 100 ether, 49 ether));
-        assertTrue( Guy(bob).try_tend(id, 100 ether, 50 ether));
+        assertTrue( Guy(ali).try_makeBidIncreaseBidSize(id, 100 ether, 49 ether));
+        assertTrue( Guy(bob).try_makeBidIncreaseBidSize(id, 100 ether, 50 ether));
 
-        assertTrue(!Guy(ali).try_dent(id, 100 ether, 50 ether));
-        assertTrue(!Guy(ali).try_dent(id,  99 ether, 50 ether));
-        assertTrue( Guy(ali).try_dent(id,  95 ether, 50 ether));
+        assertTrue(!Guy(ali).try_makeBidDecreaseLotSize(id, 100 ether, 50 ether));
+        assertTrue(!Guy(ali).try_makeBidDecreaseLotSize(id,  99 ether, 50 ether));
+        assertTrue( Guy(ali).try_makeBidDecreaseLotSize(id,  95 ether, 50 ether));
     }
-    function test_deal() public {
-        uint id = flip.kick({ lot: 100 ether
+    function test_claimWinningBid() public {
+        uint id = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
@@ -206,12 +206,12 @@ contract FlipTest is DSTest {
                             });
 
         // only after ttl
-        Guy(ali).tend(id, 100 ether, 1 ether);
-        assertTrue(!Guy(bob).try_deal(id));
+        Guy(ali).makeBidIncreaseBidSize(id, 100 ether, 1 ether);
+        assertTrue(!Guy(bob).try_claimWinningBid(id));
         hevm.warp(4.1 hours);
-        assertTrue( Guy(bob).try_deal(id));
+        assertTrue( Guy(bob).try_claimWinningBid(id));
 
-        uint ie = flip.kick({ lot: 100 ether
+        uint ie = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
@@ -220,42 +220,42 @@ contract FlipTest is DSTest {
 
         // or after end
         hevm.warp(2 days);
-        Guy(ali).tend(ie, 100 ether, 1 ether);
-        assertTrue(!Guy(bob).try_deal(ie));
+        Guy(ali).makeBidIncreaseBidSize(ie, 100 ether, 1 ether);
+        assertTrue(!Guy(bob).try_claimWinningBid(ie));
         hevm.warp(3 days);
-        assertTrue( Guy(bob).try_deal(ie));
+        assertTrue( Guy(bob).try_claimWinningBid(ie));
     }
-    function test_tick() public {
+    function test_restartAuction() public {
         // start an auction
-        uint id = flip.kick({ lot: 100 ether
+        uint id = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
                             , bid: 0
                             });
-        // check no tick
-        assertTrue(!Guy(ali).try_tick(id));
+        // check no restartAuction
+        assertTrue(!Guy(ali).try_restartAuction(id));
         // run past the end
         hevm.warp(2 weeks);
         // check not biddable
-        assertTrue(!Guy(ali).try_tend(id, 100 ether, 1 ether));
-        assertTrue( Guy(ali).try_tick(id));
+        assertTrue(!Guy(ali).try_makeBidIncreaseBidSize(id, 100 ether, 1 ether));
+        assertTrue( Guy(ali).try_restartAuction(id));
         // check biddable
-        assertTrue( Guy(ali).try_tend(id, 100 ether, 1 ether));
+        assertTrue( Guy(ali).try_makeBidIncreaseBidSize(id, 100 ether, 1 ether));
     }
-    function test_no_deal_after_end() public {
+    function test_no_claimWinningBid_after_end() public {
         // if there are no bids and the auction ends, then it should not
-        // be refundable to the creator. Rather, it ticks indefinitely.
-        uint id = flip.kick({ lot: 100 ether
+        // be refundable to the creator. Rather, it restartAuctions indefinitely.
+        uint id = flip.startAuction({ lot: 100 ether
                             , tab: 50 ether
                             , urn: urn
                             , gal: gal
                             , bid: 0
                             });
-        assertTrue(!Guy(ali).try_deal(id));
+        assertTrue(!Guy(ali).try_claimWinningBid(id));
         hevm.warp(2 weeks);
-        assertTrue(!Guy(ali).try_deal(id));
-        assertTrue( Guy(ali).try_tick(id));
-        assertTrue(!Guy(ali).try_deal(id));
+        assertTrue(!Guy(ali).try_claimWinningBid(id));
+        assertTrue( Guy(ali).try_restartAuction(id));
+        assertTrue(!Guy(ali).try_claimWinningBid(id));
     }
 }

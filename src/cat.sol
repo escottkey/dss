@@ -21,12 +21,12 @@ pragma experimental ABIEncoderV2;
 import "./lib.sol";
 
 contract Flippy {
-    function kick(address urn, address gal, uint tab, uint lot, uint bid)
-        public returns (uint);
-}
+    function startAuction(address urn, address incomeReceipient, uint tab, uint lot, uint bid)
+                public returns (uint);
+        }
 
-contract VatLike {
-    struct Ilk {
+        contract VatLike {
+            struct Ilk {
         uint256 Art;   // wad
         uint256 rate;  // ray
         uint256 spot;  // ray
@@ -43,7 +43,7 @@ contract VatLike {
 }
 
 contract VowLike {
-    function fess(uint) public;
+    function addDebtToDebtQueue(uint) public;
 }
 
 contract Cat is DSNote {
@@ -56,8 +56,8 @@ contract Cat is DSNote {
     // --- Data ---
     struct Ilk {
         address flip;  // Liquidator
-        uint256 chop;  // Liquidation Penalty   [ray]
-        uint256 lump;  // Liquidation Quantity  [rad]
+        uint256 liquidationPenalty;  // Liquidation Penalty   [ray]
+        uint256 liquidationQuantity;  // Liquidation Quantity  [rad]
     }
     struct Flip {
         bytes32 ilk;  // Collateral Type
@@ -114,25 +114,25 @@ contract Cat is DSNote {
         if (what == "vow") vow = VowLike(data);
     }
     function file(bytes32 ilk, bytes32 what, uint data) public note auth {
-        if (what == "chop") ilks[ilk].chop = data;
-        if (what == "lump") ilks[ilk].lump = data;
+        if (what == "liquidationPenalty") ilks[ilk].liquidationPenalty = data;
+        if (what == "liquidationQuantity") ilks[ilk].liquidationQuantity = data;
     }
     function file(bytes32 ilk, bytes32 what, address flip) public note auth {
         if (what == "flip") ilks[ilk].flip = flip; vat.hope(flip);
     }
 
     // --- CDP Liquidation ---
-    function bite(bytes32 ilk, address urn) public returns (uint) {
+    function liquidateCdp(bytes32 ilk, address urn) public returns (uint) {
         require(live == 1);
         VatLike.Ilk memory i = vat.ilks(ilk);
         VatLike.Urn memory u = vat.urns(ilk, urn);
 
         uint tab = mul(u.art, i.rate);
 
-        require(mul(u.ink, i.spot) < tab);  // !safe
+        require(mul(u.ink, i.spot) < tab);  // !isCdpSafe
 
         vat.grab(ilk, urn, address(this), address(vow), -int(u.ink), -int(u.art));
-        vow.fess(tab);
+        vow.addDebtToDebtQueue(tab);
 
         flips[nflip] = Flip(ilk, urn, u.ink, tab);
 
@@ -146,7 +146,7 @@ contract Cat is DSNote {
         Ilk  storage i = ilks[f.ilk];
 
         require(rad <= f.tab);
-        require(rad == i.lump || (rad < i.lump && rad == f.tab));
+        require(rad == i.liquidationQuantity || (rad < i.liquidationQuantity && rad == f.tab));
 
         uint tab = f.tab;
         uint ink = mul(f.ink, rad) / tab;
@@ -154,12 +154,12 @@ contract Cat is DSNote {
         f.tab -= rad;
         f.ink -= ink;
 
-        id = Flippy(i.flip).kick({ urn: f.urn
-                                 , gal: address(vow)
-                                 , tab: rmul(rad, i.chop)
-                                 , lot: ink
-                                 , bid: 0
-                                 });
+        id = Flippy(i.flip).startAuction({ urn: f.urn
+                                         , incomeReceipient: address(vow)
+                                         , tab: rmul(rad, i.liquidationPenalty)
+                                         , lot: ink
+                                         , bid: 0
+                                         });
         emit FlipKick(n, id);
     }
 }

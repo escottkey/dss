@@ -31,21 +31,21 @@ contract GemLike {
 
  - `lot` dai for sale
  - `bid` gems paid
- - `gal` receives gem income
+ - `incomeRecipient` receives gem income
  - `ttl` single bid lifetime
- - `beg` minimum bid increase
- - `end` max auction duration
+ - `minimumBidIncrease` minimum bid increase
+ - `auctionEndTimestamp` max auction duration
 */
 
-contract Flapper is DSNote {
+contract DaiForMkrSurplusAuction is DSNote {
     // --- Data ---
     struct Bid {
         uint256 bid;
         uint256 lot;
-        address guy;  // high bidder
+        address highBidder;  // high bidder
         uint48  tic;  // expiry time
-        uint48  end;
-        address gal;
+        uint48  auctionEndTimestamp;
+        address incomeRecipient;
     }
 
     mapping (uint => Bid) public bids;
@@ -54,17 +54,17 @@ contract Flapper is DSNote {
     GemLike  public   gem;
 
     uint256  constant ONE = 1.00E27;
-    uint256  public   beg = 1.05E27;  // 5% minimum bid increase
+    uint256  public   minimumBidIncrease = 1.05E27;  // 5% minimum bid increase
     uint48   public   ttl = 3 hours;  // 3 hours bid duration
-    uint48   public   tau = 2 days;   // 2 days total auction length
-    uint256  public kicks = 0;
+    uint48   public   maximumAuctionDuration = 2 days;   // 2 days total auction length
+    uint256  public startAuctions = 0;
 
     // --- Events ---
     event Kick(
       uint256 id,
       uint256 lot,
       uint256 bid,
-      address indexed gal
+      address indexed incomeRecipient
     );
 
     // --- Init ---
@@ -82,42 +82,42 @@ contract Flapper is DSNote {
     }
 
     // --- Auction ---
-    function kick(address gal, uint lot, uint bid)
+    function startAuction(address incomeRecipient, uint lot, uint bid)
         public returns (uint id)
     {
-        require(kicks < uint(-1));
-        id = ++kicks;
+        require(startAuctions < uint(-1));
+        id = ++startAuctions;
 
         bids[id].bid = bid;
         bids[id].lot = lot;
-        bids[id].guy = msg.sender; // configurable??
-        bids[id].end = add(uint48(now), tau);
-        bids[id].gal = gal;
+        bids[id].highBidder = msg.sender; // configurable??
+        bids[id].auctionEndTimestamp = add(uint48(now), maximumAuctionDuration);
+        bids[id].incomeRecipient = incomeRecipient;
 
         dai.move(msg.sender, address(this), lot);
 
-        emit Kick(id, lot, bid, gal);
+        emit Kick(id, lot, bid, incomeRecipient);
     }
-    function tend(uint id, uint lot, uint bid) public note {
-        require(bids[id].guy != address(0));
+    function makeBidIncreaseBidSize(uint id, uint lot, uint bid) public note {
+        require(bids[id].highBidder != address(0));
         require(bids[id].tic > now || bids[id].tic == 0);
-        require(bids[id].end > now);
+        require(bids[id].auctionEndTimestamp > now);
 
         require(lot == bids[id].lot);
         require(bid >  bids[id].bid);
-        require(mul(bid, ONE) >= mul(beg, bids[id].bid));
+        require(mul(bid, ONE) >= mul(minimumBidIncrease, bids[id].bid));
 
-        gem.move(msg.sender, bids[id].guy, bids[id].bid);
-        gem.move(msg.sender, bids[id].gal, bid - bids[id].bid);
+        gem.move(msg.sender, bids[id].highBidder, bids[id].bid);
+        gem.move(msg.sender, bids[id].incomeRecipient, bid - bids[id].bid);
 
-        bids[id].guy = msg.sender;
+        bids[id].highBidder = msg.sender;
         bids[id].bid = bid;
         bids[id].tic = add(uint48(now), ttl);
     }
-    function deal(uint id) public note {
+    function claimWinningBid(uint id) public note {
         require(bids[id].tic < now && bids[id].tic != 0 ||
-                bids[id].end < now);
-        dai.move(address(this), bids[id].guy, bids[id].lot);
+                bids[id].auctionEndTimestamp < now);
+        dai.move(address(this), bids[id].highBidder, bids[id].lot);
         delete bids[id];
     }
 }

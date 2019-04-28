@@ -9,9 +9,9 @@ import {Vow} from '../vow.sol';
 import {Jug} from '../jug.sol';
 import {GemJoin, ETHJoin, DaiJoin} from '../join.sol';
 
-import {Flipper} from './flip.t.sol';
-import {Flopper} from './flop.t.sol';
-import {Flapper} from './flap.t.sol';
+import {CollateralForDaiAuction} from './flip.t.sol';
+import {MkrForDaiDebtAuction} from './flop.t.sol';
+import {DaiForMkrSurplusAuction} from './flap.t.sol';
 
 
 contract Hevm {
@@ -160,25 +160,25 @@ contract FrobTest is DSTest {
         assertEq(ink("gold", address(this)),    0 ether);
         assertEq(gem("gold", address(this)), 1000 ether);
     }
-    function test_calm() public {
-        // calm means that the debt ceiling is not exceeded
-        // it's ok to increase debt as long as you remain calm
+    function test_isCdpBelowCollateralAndTotalDebtCeilings() public {
+        // isCdpBelowCollateralAndTotalDebtCeilings means that the debt ceiling is not exceeded
+        // it's ok to increase debt as long as you remain below the debt ceilings
         vat.file("gold", 'line', rad(10 ether));
         assertTrue( try_frob("gold", 10 ether, 9 ether));
         // only if under debt ceiling
         assertTrue(!try_frob("gold",  0 ether, 2 ether));
     }
-    function test_cool() public {
-        // cool means that the debt has decreased
-        // it's ok to be over the debt ceiling as long as you're cool
+    function test_isCdpDaiDebtNonIncreasing() public {
+        // isCdpDaiDebtNonIncreasing means that the debt has not increased
+        // it's ok to be over the debt ceiling as long as you're not increasing the debt
         vat.file("gold", 'line', rad(10 ether));
         assertTrue(try_frob("gold", 10 ether,  8 ether));
         vat.file("gold", 'line', rad(5 ether));
         // can decrease debt when over ceiling
         assertTrue(try_frob("gold",  0 ether, -1 ether));
     }
-    function test_safe() public {
-        // safe means that the cdp is not risky
+    function test_isCdpSafe() public {
+        // isCdpSafe means that the cdp is not risky
         // you can't frob a cdp into unsafe
         vat.frob("gold", 10 ether, 5 ether);                // safe draw
         assertTrue(!try_frob("gold", 0 ether, 6 ether));  // unsafe draw
@@ -380,9 +380,9 @@ contract BiteTest is DSTest {
 
     GemJoin gemA;
 
-    Flipper flip;
-    Flopper flop;
-    Flapper flap;
+    CollateralForDaiAuction flip;
+    MkrForDaiDebtAuction mkrForDaiDebtAuction;
+    DaiForMkrSurplusAuction daiForMkrSurplusAuction;
 
     DSToken gov;
 
@@ -421,15 +421,15 @@ contract BiteTest is DSTest {
         vat = new TestVat();
         vat = vat;
 
-        flap = new Flapper(address(vat), address(gov));
-        flop = new Flopper(address(vat), address(gov));
-        gov.setOwner(address(flop));
+        daiForMkrSurplusAuction = new DaiForMkrSurplusAuction(address(vat), address(gov));
+        mkrForDaiDebtAuction = new MkrForDaiDebtAuction(address(vat), address(gov));
+        gov.setOwner(address(mkrForDaiDebtAuction));
 
         vow = new Vow();
         vow.file("vat",  address(vat));
-        vow.file("flap", address(flap));
-        vow.file("flop", address(flop));
-        flop.rely(address(vow));
+        vow.file("daiForMkrSurplusAuction", address(daiForMkrSurplusAuction));
+        vow.file("mkrForDaiDebtAuction", address(mkrForDaiDebtAuction));
+        mkrForDaiDebtAuction.rely(address(vow));
 
         jug = new Jug(address(vat));
         jug.init("gold");
@@ -453,20 +453,20 @@ contract BiteTest is DSTest {
         vat.file("gold", "spot", ray(1 ether));
         vat.file("gold", "line", rad(1000 ether));
         vat.file("Line",         rad(1000 ether));
-        flip = new Flipper(address(vat), "gold");
+        flip = new CollateralForDaiAuction(address(vat), "gold");
         cat.file("gold", "flip", address(flip));
-        cat.file("gold", "chop", ray(1 ether));
+        cat.file("gold", "liquidationPenalty", ray(1 ether));
 
         vat.rely(address(flip));
-        vat.rely(address(flap));
-        vat.rely(address(flop));
+        vat.rely(address(daiForMkrSurplusAuction));
+        vat.rely(address(mkrForDaiDebtAuction));
 
         vat.hope(address(flip));
-        vat.hope(address(flop));
+        vat.hope(address(mkrForDaiDebtAuction));
         gold.approve(address(vat));
-        gov.approve(address(flap));
+        gov.approve(address(daiForMkrSurplusAuction));
     }
-    function test_happy_bite() public {
+    function test_happy_liquidateCdp() public {
         // spot = tag / (par . mat)
         // tag=5, mat=2
         vat.file("gold", 'spot', ray(2.5 ether));
@@ -477,83 +477,83 @@ contract BiteTest is DSTest {
 
         assertEq(ink("gold", address(this)),  40 ether);
         assertEq(art("gold", address(this)), 100 ether);
-        assertEq(vow.Woe(), 0 ether);
+        assertEq(vow.TotalNonQueuedNonAuctionDebt(), 0 ether);
         assertEq(gem("gold", address(this)), 960 ether);
-        uint id = cat.bite("gold", address(this));
+        uint id = cat.liquidateCdp("gold", address(this));
         assertEq(ink("gold", address(this)), 0);
         assertEq(art("gold", address(this)), 0);
-        assertEq(vow.sin(uint48(now)),   rad(100 ether));
+        assertEq(vow.debtQueue(uint48(now)),   rad(100 ether));
         assertEq(gem("gold", address(this)), 960 ether);
 
-        cat.file("gold", "lump", rad(100 ether));
+        cat.file("gold", "liquidationQuantity", rad(100 ether));
         uint auction = cat.flip(id, rad(100 ether));  // flip all the tab
 
         assertEq(vat.balanceOf(address(vow)),    0 ether);
-        flip.tend(auction, 40 ether,   rad(1 ether));
+        flip.makeBidIncreaseBidSize(auction, 40 ether,   rad(1 ether));
         assertEq(vat.balanceOf(address(vow)),    1 ether);
-        flip.tend(auction, 40 ether, rad(100 ether));
+        flip.makeBidIncreaseBidSize(auction, 40 ether, rad(100 ether));
         assertEq(vat.balanceOf(address(vow)),  100 ether);
 
         assertEq(vat.balanceOf(address(this)),   0 ether);
         assertEq(gem("gold", address(this)),   960 ether);
         vat.mint(address(this), 100 ether);  // magic up some dai for bidding
-        flip.dent(auction, 38 ether,  rad(100 ether));
+        flip.makeBidDecreaseLotSize(auction, 38 ether,  rad(100 ether));
         assertEq(vat.balanceOf(address(this)), 100 ether);
         assertEq(vat.balanceOf(address(vow)),  100 ether);
         assertEq(gem("gold", address(this)),   962 ether);
         assertEq(gem("gold", address(this)),   962 ether);
 
-        assertEq(vow.sin(uint48(now)),     rad(100 ether));
+        assertEq(vow.debtQueue(uint48(now)),     rad(100 ether));
         assertEq(vat.balanceOf(address(vow)),  100 ether);
     }
 
-    function test_floppy_bite() public {
+    function test_debtAuction_liquidateCdp() public {
         vat.file("gold", 'spot', ray(2.5 ether));
         vat.frob("gold",  40 ether, 100 ether);
         vat.file("gold", 'spot', ray(2 ether));  // now unsafe
 
-        assertEq(vow.sin(uint48(now)), rad(  0 ether));
-        cat.bite("gold", address(this));
-        assertEq(vow.sin(uint48(now)), rad(100 ether));
+        assertEq(vow.debtQueue(uint48(now)), rad(  0 ether));
+        cat.liquidateCdp("gold", address(this));
+        assertEq(vow.debtQueue(uint48(now)), rad(100 ether));
 
-        assertEq(vow.Sin(), rad(100 ether));
-        vow.flog(uint48(now));
-        assertEq(vow.Sin(), rad(  0 ether));
-        assertEq(vow.Woe(), rad(100 ether));
-        assertEq(vow.Joy(), rad(  0 ether));
-        assertEq(vow.Ash(), rad(  0 ether));
+        assertEq(vow.TotalDebtInQueue(), rad(100 ether));
+        vow.removeDebtFromDebtQueue(uint48(now));
+        assertEq(vow.TotalDebtInQueue(), rad(  0 ether));
+        assertEq(vow.TotalNonQueuedNonAuctionDebt(), rad(100 ether));
+        assertEq(vow.TotalSurplus(), rad(  0 ether));
+        assertEq(vow.TotalOnAuctionDebt(), rad(  0 ether));
 
-        vow.file("sump", rad(10 ether));
-        uint f1 = vow.flop();
-        assertEq(vow.Woe(),  rad(90 ether));
-        assertEq(vow.Joy(),  rad( 0 ether));
-        assertEq(vow.Ash(),  rad(10 ether));
-        flop.dent(f1, 1000 ether, rad(10 ether));
-        assertEq(vow.Woe(),  rad(90 ether));
-        assertEq(vow.Joy(),  rad(10 ether));
-        assertEq(vow.Ash(),  rad(10 ether));
+        vow.file("debtAuctionLotSize", rad(10 ether));
+        uint f1 = vow.mkrForDaiDebtAuction();
+        assertEq(vow.TotalNonQueuedNonAuctionDebt(),  rad(90 ether));
+        assertEq(vow.TotalSurplus(),  rad( 0 ether));
+        assertEq(vow.TotalOnAuctionDebt(),  rad(10 ether));
+        mkrForDaiDebtAuction.makeBidDecreaseLotSize(f1, 1000 ether, rad(10 ether));
+        assertEq(vow.TotalNonQueuedNonAuctionDebt(),  rad(90 ether));
+        assertEq(vow.TotalSurplus(),  rad(10 ether));
+        assertEq(vow.TotalOnAuctionDebt(),  rad(10 ether));
 
         assertEq(gov.balanceOf(address(this)),  100 ether);
         hevm.warp(4 hours);
-        flop.deal(f1);
+        mkrForDaiDebtAuction.claimWinningBid(f1);
         assertEq(gov.balanceOf(address(this)), 1100 ether);
     }
 
-    function test_flappy_bite() public {
+    function test_surplusAuction_liquidateCdp() public {
         // get some surplus
         vat.mint(address(vow), 100 ether);
         assertEq(vat.balanceOf(address(vow)),  100 ether);
         assertEq(gov.balanceOf(address(this)), 100 ether);
 
-        vow.file("bump", rad(100 ether));
-        assertEq(vow.Awe(), 0 ether);
-        uint id = vow.flap();
+        vow.file("surplusAuctionLotSize", rad(100 ether));
+        assertEq(vow.TotalDebt(), 0 ether);
+        uint id = vow.daiForMkrSurplusAuction();
 
         assertEq(vat.balanceOf(address(this)),   0 ether);
         assertEq(gov.balanceOf(address(this)), 100 ether);
-        flap.tend(id, rad(100 ether), 10 ether);
+        daiForMkrSurplusAuction.makeBidIncreaseBidSize(id, rad(100 ether), 10 ether);
         hevm.warp(4 hours);
-        flap.deal(id);
+        daiForMkrSurplusAuction.claimWinningBid(id);
         assertEq(vat.balanceOf(address(this)),   100 ether);
         assertEq(gov.balanceOf(address(this)),    90 ether);
     }

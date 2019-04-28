@@ -2,8 +2,8 @@ pragma solidity >=0.5.0;
 
 import "ds-test/test.sol";
 
-import {Flopper as Flop} from './flop.t.sol';
-import {Flapper as Flap} from './flap.t.sol';
+import {MkrForDaiDebtAuction} from './flop.t.sol';
+import {DaiForMkrSurplusAuction} from './flap.t.sol';
 import {TestVat as  Vat} from './vat.t.sol';
 import {Vow}     from '../vow.sol';
 
@@ -23,8 +23,8 @@ contract VowTest is DSTest {
 
     Vat  vat;
     Vow  vow;
-    Flop flop;
-    Flap flap;
+    MkrForDaiDebtAuction mkrForDaiDebtAuction;
+    DaiForMkrSurplusAuction daiForMkrSurplusAuction;
     Gem  gov;
 
     function setUp() public {
@@ -36,35 +36,35 @@ contract VowTest is DSTest {
         vat.rely(address(vow));
         gov  = new Gem();
 
-        flop = new Flop(address(vat), address(gov));
-        flap = new Flap(address(vat), address(gov));
-        vat.hope(address(flop));
-        vat.rely(address(flop));
-        vat.rely(address(flap));
-        flop.rely(address(vow));
+        mkrForDaiDebtAuction = new MkrForDaiDebtAuction(address(vat), address(gov));
+        daiForMkrSurplusAuction = new DaiForMkrSurplusAuction(address(vat), address(gov));
+        vat.hope(address(mkrForDaiDebtAuction));
+        vat.rely(address(mkrForDaiDebtAuction));
+        vat.rely(address(daiForMkrSurplusAuction));
+        mkrForDaiDebtAuction.rely(address(vow));
 
         vow.file("vat",  address(vat));
-        vow.file("flop", address(flop));
-        vow.file("flap", address(flap));
-        vow.file("bump", rad(100 ether));
-        vow.file("sump", rad(100 ether));
+        vow.file("mkrForDaiDebtAuction", address(mkrForDaiDebtAuction));
+        vow.file("daiForMkrSurplusAuction", address(daiForMkrSurplusAuction));
+        vow.file("surplusAuctionLotSize", rad(100 ether));
+        vow.file("debtAuctionLotSize", rad(100 ether));
     }
 
-    function try_flog(uint48 era) internal returns (bool ok) {
-        string memory sig = "flog(uint48)";
+    function try_removeDebtFromDebtQueue(uint48 era) internal returns (bool ok) {
+        string memory sig = "removeDebtFromDebtQueue(uint48)";
         (ok,) = address(vow).call(abi.encodeWithSignature(sig, era));
     }
-    function try_flop() internal returns (bool ok) {
-        string memory sig = "flop()";
+    function try_mkrForDaiDebtAuction() internal returns (bool ok) {
+        string memory sig = "mkrForDaiDebtAuction()";
         (ok,) = address(vow).call(abi.encodeWithSignature(sig));
     }
-    function try_flap() internal returns (bool ok) {
-        string memory sig = "flap()";
+    function try_daiForMkrSurplusAuction() internal returns (bool ok) {
+        string memory sig = "daiForMkrSurplusAuction()";
         (ok,) = address(vow).call(abi.encodeWithSignature(sig));
     }
-    function try_dent(uint id, uint lot, uint bid) internal returns (bool ok) {
-        string memory sig = "dent(uint256,uint256,uint256)";
-        (ok,) = address(flop).call(abi.encodeWithSignature(sig, id, lot, bid));
+    function try_makeBidDecreaseLotSize(uint id, uint lot, uint bid) internal returns (bool ok) {
+        string memory sig = "makeBidDecreaseLotSize(uint256,uint256,uint256)";
+        (ok,) = address(mkrForDaiDebtAuction).call(abi.encodeWithSignature(sig, id, lot, bid));
     }
 
     uint constant ONE = 10 ** 27;
@@ -73,100 +73,100 @@ contract VowTest is DSTest {
     }
 
     function suck(address who, uint wad) internal {
-        vow.fess(rad(wad));
+        vow.addDebtToDebtQueue(rad(wad));
         vat.init('');
-        vat.heal(address(vow), who, -int(rad(wad)));
+        vat.settleDebtUsingSurplus(address(vow), who, -int(rad(wad)));
     }
-    function flog(uint wad) internal {
+    function removeDebtFromDebtQueue(uint wad) internal {
         suck(address(0), wad);  // suck dai into the zero address
-        vow.flog(uint48(now));
+        vow.removeDebtFromDebtQueue(uint48(now));
     }
-    function heal(uint wad) internal {
-        vow.heal(rad(wad));
+    function settleDebtUsingSurplus(uint wad) internal {
+        vow.settleDebtUsingSurplus(rad(wad));
     }
 
-    function test_flog_wait() public {
-        assertEq(vow.wait(), 0);
-        vow.file('wait', uint(100 seconds));
-        assertEq(vow.wait(), 100 seconds);
+    function test_removeDebtFromDebtQueue_debtQueueLength() public {
+        assertEq(vow.debtQueueLength(), 0);
+        vow.file('debtQueueLength', uint(100 seconds));
+        assertEq(vow.debtQueueLength(), 100 seconds);
 
         uint48 tic = uint48(now);
-        vow.fess(100 ether);
-        assertTrue(!try_flog(tic) );
+        vow.addDebtToDebtQueue(100 ether);
+        assertTrue(!try_removeDebtFromDebtQueue(tic) );
         hevm.warp(tic + uint48(100 seconds));
-        assertTrue( try_flog(tic) );
+        assertTrue( try_removeDebtFromDebtQueue(tic) );
     }
 
-    function test_no_reflop() public {
-        flog(100 ether);
-        assertTrue( try_flop() );
-        assertTrue(!try_flop() );
+    function test_no_remkrForDaiDebtAuction() public {
+        removeDebtFromDebtQueue(100 ether);
+        assertTrue( try_mkrForDaiDebtAuction() );
+        assertTrue(!try_mkrForDaiDebtAuction() );
     }
 
-    function test_no_flop_pending_joy() public {
-        flog(200 ether);
+    function test_no_mkrForDaiDebtAuction_pending_joy() public {
+        removeDebtFromDebtQueue(200 ether);
 
         vat.mint(address(vow), 100 ether);
-        assertTrue(!try_flop() );
+        assertTrue(!try_mkrForDaiDebtAuction() );
 
-        heal(100 ether);
-        assertTrue( try_flop() );
+        settleDebtUsingSurplus(100 ether);
+        assertTrue( try_mkrForDaiDebtAuction() );
     }
 
-    function test_flap() public {
+    function test_daiForMkrSurplusAuction() public {
         vat.mint(address(vow), 100 ether);
-        assertTrue( try_flap() );
+        assertTrue( try_daiForMkrSurplusAuction() );
     }
 
-    function test_no_flap_pending_sin() public {
-        vow.file("bump", uint256(0 ether));
-        flog(100 ether);
+    function test_no_daiForMkrSurplusAuction_pending_sin() public {
+        vow.file("surplusAuctionLotSize", uint256(0 ether));
+        removeDebtFromDebtQueue(100 ether);
 
         vat.mint(address(vow), 50 ether);
-        assertTrue(!try_flap() );
+        assertTrue(!try_daiForMkrSurplusAuction() );
     }
-    function test_no_flap_nonzero_woe() public {
-        vow.file("bump", uint256(0 ether));
-        flog(100 ether);
+    function test_no_daiForMkrSurplusAuction_nonzero_woe() public {
+        vow.file("surplusAuctionLotSize", uint256(0 ether));
+        removeDebtFromDebtQueue(100 ether);
         vat.mint(address(vow), 50 ether);
-        assertTrue(!try_flap() );
+        assertTrue(!try_daiForMkrSurplusAuction() );
     }
-    function test_no_flap_pending_flop() public {
-        flog(100 ether);
-        vow.flop();
+    function test_no_daiForMkrSurplusAuction_pending_mkrForDaiDebtAuction() public {
+        removeDebtFromDebtQueue(100 ether);
+        vow.mkrForDaiDebtAuction();
 
         vat.mint(address(vow), 100 ether);
 
-        assertTrue(!try_flap() );
+        assertTrue(!try_daiForMkrSurplusAuction() );
     }
-    function test_no_flap_pending_kiss() public {
-        flog(100 ether);
-        uint id = vow.flop();
+    function test_no_daiForMkrSurplusAuction_pending_settleOnAuctionDebtUsingSurplus() public {
+        removeDebtFromDebtQueue(100 ether);
+        uint id = vow.mkrForDaiDebtAuction();
 
         vat.mint(address(this), 100 ether);
-        flop.dent(id, 0 ether, rad(100 ether));
+        mkrForDaiDebtAuction.makeBidDecreaseLotSize(id, 0 ether, rad(100 ether));
 
-        assertTrue(!try_flap() );
-    }
-
-    function test_no_surplus_after_good_flop() public {
-        flog(100 ether);
-        uint id = vow.flop();
-        vat.mint(address(this), 100 ether);
-
-        flop.dent(id, 0 ether, rad(100 ether));  // flop succeeds..
-
-        assertTrue(!try_flap() );
+        assertTrue(!try_mkrForDaiDebtAuction() );
     }
 
-    function test_multiple_flop_dents() public {
-        flog(100 ether);
-        uint id = vow.flop();
+    function test_no_surplus_after_good_mkrForDaiDebtAuction() public {
+        removeDebtFromDebtQueue(100 ether);
+        uint id = vow.mkrForDaiDebtAuction();
+        vat.mint(address(this), 100 ether);
+
+        mkrForDaiDebtAuction.makeBidDecreaseLotSize(id, 0 ether, rad(100 ether));  // mkrForDaiDebtAuction succeeds..
+
+        assertTrue(!try_mkrForDaiDebtAuction() );
+    }
+
+    function test_multiple_mkrForDaiDebtAuction_makeBidDecreaseLotSizes() public {
+        removeDebtFromDebtQueue(100 ether);
+        uint id = vow.mkrForDaiDebtAuction();
 
         vat.mint(address(this), 100 ether);
-        assertTrue(try_dent(id, 2 ether,  rad(100 ether)));
+        assertTrue(try_makeBidDecreaseLotSize(id, 2 ether,  rad(100 ether)));
 
         vat.mint(address(this), 100 ether);
-        assertTrue(try_dent(id, 1 ether,  rad(100 ether)));
+        assertTrue(try_makeBidDecreaseLotSize(id, 1 ether,  rad(100 ether)));
     }
 }

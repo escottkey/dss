@@ -18,7 +18,7 @@ contract VatLike {
 
 contract JugTest is DSTest {
     Hevm hevm;
-    Jug drip;
+    Jug increaseStabilityFee;
     Vat  vat;
 
     function rad(uint wad_) internal pure returns (uint) {
@@ -27,9 +27,9 @@ contract JugTest is DSTest {
     function wad(uint rad_) internal pure returns (uint) {
         return rad_ / 10 ** 27;
     }
-    function rho(bytes32 ilk) internal view returns (uint) {
-        (uint duty, uint48 rho_) = drip.ilks(ilk); duty;
-        return uint(rho_);
+    function collateralTypeLastStabilityFeeCollectionTimestamp(bytes32 ilk) internal view returns (uint) {
+        (uint duty, uint48 collateralTypeLastStabilityFeeCollectionTimestamp_) = increaseStabilityFee.ilks(ilk); duty;
+        return uint(collateralTypeLastStabilityFeeCollectionTimestamp_);
     }
     function rate(bytes32 ilk) internal view returns (uint) {
         Vat.Ilk memory i = VatLike(address(vat)).ilks(ilk);
@@ -47,8 +47,8 @@ contract JugTest is DSTest {
         hevm.warp(0);
 
         vat  = new Vat();
-        drip = new Jug(address(vat));
-        vat.rely(address(drip));
+        increaseStabilityFee = new Jug(address(vat));
+        vat.rely(address(increaseStabilityFee));
         vat.init("i");
 
         draw("i", 100 ether);
@@ -62,7 +62,7 @@ contract JugTest is DSTest {
         vat.frob(ilk, self, self, self, int(1 ether), int(dai));
     }
 
-    function test_drip_setup() public {
+    function test_increaseStabilityFee_setup() public {
         assertEq(uint(now), 0);
         hevm.warp(1);
         assertEq(uint(now), 1);
@@ -71,93 +71,93 @@ contract JugTest is DSTest {
         Vat.Ilk memory i = VatLike(address(vat)).ilks("i");
         assertEq(i.Art, 100 ether);
     }
-    function test_drip_updates_rho() public {
-        drip.init("i");
-        assertEq(rho("i"), 0);
+    function test_increaseStabilityFee_updates_collateralTypeLastStabilityFeeCollectionTimestamp() public {
+        increaseStabilityFee.init("i");
+        assertEq(collateralTypeLastStabilityFeeCollectionTimestamp("i"), 0);
 
-        drip.file("i", "duty", 10 ** 27);
-        drip.drip("i");
-        assertEq(rho("i"), 0);
+        increaseStabilityFee.file("i", "duty", 10 ** 27);
+        increaseStabilityFee.increaseStabilityFee("i");
+        assertEq(collateralTypeLastStabilityFeeCollectionTimestamp("i"), 0);
         hevm.warp(1);
-        assertEq(rho("i"), 0);
-        drip.drip("i");
-        assertEq(rho("i"), 1);
+        assertEq(collateralTypeLastStabilityFeeCollectionTimestamp("i"), 0);
+        increaseStabilityFee.increaseStabilityFee("i");
+        assertEq(collateralTypeLastStabilityFeeCollectionTimestamp("i"), 1);
         hevm.warp(1 days);
-        drip.drip("i");
-        assertEq(rho("i"), 1 days);
+        increaseStabilityFee.increaseStabilityFee("i");
+        assertEq(collateralTypeLastStabilityFeeCollectionTimestamp("i"), 1 days);
     }
-    function test_drip_file() public {
-        drip.init("i");
-        drip.file("i", "duty", 10 ** 27);
+    function test_increaseStabilityFee_file() public {
+        increaseStabilityFee.init("i");
+        increaseStabilityFee.file("i", "duty", 10 ** 27);
         hevm.warp(1);
-        drip.drip("i");
-        drip.file("i", "duty", 1000000564701133626865910626);  // 5% / day
+        increaseStabilityFee.increaseStabilityFee("i");
+        increaseStabilityFee.file("i", "duty", 1000000564701133626865910626);  // 5% / day
     }
-    function test_drip_0d() public {
-        drip.init("i");
-        drip.file("i", "duty", 1000000564701133626865910626);  // 5% / day
+    function test_increaseStabilityFee_0d() public {
+        increaseStabilityFee.init("i");
+        increaseStabilityFee.file("i", "duty", 1000000564701133626865910626);  // 5% / day
         assertEq(vat.dai(ali), rad(0 ether));
-        drip.drip("i");
+        increaseStabilityFee.increaseStabilityFee("i");
         assertEq(vat.dai(ali), rad(0 ether));
     }
-    function test_drip_1d() public {
-        drip.init("i");
-        drip.file("vow", ali);
+    function test_increaseStabilityFee_1d() public {
+        increaseStabilityFee.init("i");
+        increaseStabilityFee.file("vow", ali);
 
-        drip.file("i", "duty", 1000000564701133626865910626);  // 5% / day
+        increaseStabilityFee.file("i", "duty", 1000000564701133626865910626);  // 5% / day
         hevm.warp(1 days);
         assertEq(wad(vat.dai(ali)), 0 ether);
-        drip.drip("i");
+        increaseStabilityFee.increaseStabilityFee("i");
         assertEq(wad(vat.dai(ali)), 5 ether);
     }
-    function test_drip_2d() public {
-        drip.init("i");
-        drip.file("vow", ali);
-        drip.file("i", "duty", 1000000564701133626865910626);  // 5% / day
+    function test_increaseStabilityFee_2d() public {
+        increaseStabilityFee.init("i");
+        increaseStabilityFee.file("vow", ali);
+        increaseStabilityFee.file("i", "duty", 1000000564701133626865910626);  // 5% / day
 
         hevm.warp(2 days);
         assertEq(wad(vat.dai(ali)), 0 ether);
-        drip.drip("i");
+        increaseStabilityFee.increaseStabilityFee("i");
         assertEq(wad(vat.dai(ali)), 10.25 ether);
     }
-    function test_drip_3d() public {
-        drip.init("i");
-        drip.file("vow", ali);
+    function test_increaseStabilityFee_3d() public {
+        increaseStabilityFee.init("i");
+        increaseStabilityFee.file("vow", ali);
 
-        drip.file("i", "duty", 1000000564701133626865910626);  // 5% / day
+        increaseStabilityFee.file("i", "duty", 1000000564701133626865910626);  // 5% / day
         hevm.warp(3 days);
         assertEq(wad(vat.dai(ali)), 0 ether);
-        drip.drip("i");
+        increaseStabilityFee.increaseStabilityFee("i");
         assertEq(wad(vat.dai(ali)), 15.7625 ether);
     }
-    function test_drip_multi() public {
-        drip.init("i");
-        drip.file("vow", ali);
+    function test_increaseStabilityFee_multi() public {
+        increaseStabilityFee.init("i");
+        increaseStabilityFee.file("vow", ali);
 
-        drip.file("i", "duty", 1000000564701133626865910626);  // 5% / day
+        increaseStabilityFee.file("i", "duty", 1000000564701133626865910626);  // 5% / day
         hevm.warp(1 days);
-        drip.drip("i");
+        increaseStabilityFee.increaseStabilityFee("i");
         assertEq(wad(vat.dai(ali)), 5 ether);
-        drip.file("i", "duty", 1000001103127689513476993127);  // 10% / day
+        increaseStabilityFee.file("i", "duty", 1000001103127689513476993127);  // 10% / day
         hevm.warp(2 days);
-        drip.drip("i");
+        increaseStabilityFee.increaseStabilityFee("i");
         assertEq(wad(vat.dai(ali)),  15.5 ether);
         assertEq(wad(vat.debt()),     115.5 ether);
         assertEq(rate("i") / 10 ** 9, 1.155 ether);
     }
-    function test_drip_base() public {
+    function test_increaseStabilityFee_base() public {
         vat.init("j");
         draw("j", 100 ether);
 
-        drip.init("i");
-        drip.init("j");
-        drip.file("vow", ali);
+        increaseStabilityFee.init("i");
+        increaseStabilityFee.init("j");
+        increaseStabilityFee.file("vow", ali);
 
-        drip.file("i", "duty", 1050000000000000000000000000);  // 5% / second
-        drip.file("j", "duty", 1000000000000000000000000000);  // 0% / second
-        drip.file("base",  uint(50000000000000000000000000)); // 5% / second
+        increaseStabilityFee.file("i", "duty", 1050000000000000000000000000);  // 5% / second
+        increaseStabilityFee.file("j", "duty", 1000000000000000000000000000);  // 0% / second
+        increaseStabilityFee.file("base",  uint(50000000000000000000000000)); // 5% / second
         hevm.warp(1);
-        drip.drip("i");
+        increaseStabilityFee.increaseStabilityFee("i");
         assertEq(wad(vat.dai(ali)), 10 ether);
     }
 }

@@ -29,26 +29,26 @@ contract VatLike {
    Once the given amount of dai is raised, gems are forgone instead.
 
  - `lot` gems for sale
- - `tab` total dai wanted
+ - `totalDaiWanted` total dai wanted
  - `bid` dai paid
- - `gal` receives dai income
+ - `incomeRecipient` receives dai income
  - `urn` receives gem forgone
  - `ttl` single bid lifetime
  - `beg` minimum bid increase
- - `end` max auction duration
+ - `auctionEndTimestamp` max auction duration
 */
 
-contract Flipper is DSNote {
+contract CollateralForDaiAuction is DSNote {
     // --- Data ---
     struct Bid {
         uint256 bid;
         uint256 lot;
-        address guy;  // high bidder
+        address highBidder;  // high bidder
         uint48  tic;  // expiry time
-        uint48  end;
+        uint48  auctionEndTimestamp;
         address urn;
-        address gal;
-        uint256 tab;
+        address incomeRecipient;
+        uint256 totalDaiWanted;
     }
 
     mapping (uint => Bid) public bids;
@@ -59,17 +59,17 @@ contract Flipper is DSNote {
     uint256 constant ONE = 1.00E27;
     uint256 public   beg = 1.05E27;  // 5% minimum bid increase
     uint48  public   ttl = 3 hours;  // 3 hours bid duration
-    uint48  public   tau = 2 days;   // 2 days total auction length
-    uint256 public kicks = 0;
+    uint48  public   maximumAuctionDuration = 2 days;   // 2 days total auction length
+    uint256 public startAuctions = 0;
 
     // --- Events ---
     event Kick(
       uint256 id,
       uint256 lot,
       uint256 bid,
-      uint256 tab,
+      uint256 totalDaiWanted,
       address indexed urn,
-      address indexed gal
+      address indexed incomeRecipient
     );
 
     // --- Init ---
@@ -87,66 +87,66 @@ contract Flipper is DSNote {
     }
 
     // --- Auction ---
-    function kick(address urn, address gal, uint tab, uint lot, uint bid)
+    function startAuction(address urn, address incomeRecipient, uint tab, uint lot, uint bid)
         public note returns (uint id)
     {
-        require(kicks < uint(-1));
-        id = ++kicks;
+        require(startAuctions < uint(-1));
+        id = ++startAuctions;
 
         bids[id].bid = bid;
         bids[id].lot = lot;
-        bids[id].guy = msg.sender; // configurable??
-        bids[id].end = add(uint48(now), tau);
+        bids[id].highBidder = msg.sender; // configurable??
+        bids[id].auctionEndTimestamp = add(uint48(now), maximumAuctionDuration);
         bids[id].urn = urn;
-        bids[id].gal = gal;
+        bids[id].incomeRecipient = incomeRecipient;
         bids[id].tab = tab;
 
         vat.flux(ilk, msg.sender, address(this), lot);
 
-        emit Kick(id, lot, bid, tab, urn, gal);
+        emit Kick(id, lot, bid, tab, urn, incomeRecipient);
     }
-    function tick(uint id) public note {
-        require(bids[id].end < now);
+    function restartAuction(uint id) public note {
+        require(bids[id].auctionEndTimestamp < now);
         require(bids[id].tic == 0);
-        bids[id].end = add(uint48(now), tau);
+        bids[id].auctionEndTimestamp = add(uint48(now), maximumAuctionDuration);
     }
-    function tend(uint id, uint lot, uint bid) public note {
-        require(bids[id].guy != address(0));
+    function makeBidIncreaseBidSize(uint id, uint lot, uint bid) public note {
+        require(bids[id].highBidder != address(0));
         require(bids[id].tic > now || bids[id].tic == 0);
-        require(bids[id].end > now);
+        require(bids[id].auctionEndTimestamp > now);
 
         require(lot == bids[id].lot);
         require(bid <= bids[id].tab);
         require(bid >  bids[id].bid);
         require(mul(bid, ONE) >= mul(beg, bids[id].bid) || bid == bids[id].tab);
 
-        vat.move(msg.sender, bids[id].guy, bids[id].bid);
-        vat.move(msg.sender, bids[id].gal, bid - bids[id].bid);
+        vat.move(msg.sender, bids[id].highBidder, bids[id].bid);
+        vat.move(msg.sender, bids[id].incomeRecipient, bid - bids[id].bid);
 
-        bids[id].guy = msg.sender;
+        bids[id].highBidder = msg.sender;
         bids[id].bid = bid;
         bids[id].tic = add(uint48(now), ttl);
     }
-    function dent(uint id, uint lot, uint bid) public note {
-        require(bids[id].guy != address(0));
+    function makeBidDecreaseLotSize(uint id, uint lot, uint bid) public note {
+        require(bids[id].highBidder != address(0));
         require(bids[id].tic > now || bids[id].tic == 0);
-        require(bids[id].end > now);
+        require(bids[id].auctionEndTimestamp > now);
 
         require(bid == bids[id].bid);
         require(bid == bids[id].tab);
         require(lot < bids[id].lot);
         require(mul(beg, lot) <= mul(bids[id].lot, ONE));
 
-        vat.move(msg.sender, bids[id].guy, bid);
+        vat.move(msg.sender, bids[id].highBidder, bid);
         vat.flux(ilk, address(this), bids[id].urn, bids[id].lot - lot);
 
-        bids[id].guy = msg.sender;
+        bids[id].highBidder = msg.sender;
         bids[id].lot = lot;
         bids[id].tic = add(uint48(now), ttl);
     }
-    function deal(uint id) public note {
-        require(bids[id].tic != 0 && (bids[id].tic < now || bids[id].end < now));
-        vat.flux(ilk, address(this), bids[id].guy, bids[id].lot);
+    function claimWinningBid(uint id) public note {
+        require(bids[id].tic != 0 && (bids[id].tic < now || bids[id].auctionEndTimestamp < now));
+        vat.flux(ilk, address(this), bids[id].highBidder, bids[id].lot);
         delete bids[id];
     }
 }

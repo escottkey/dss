@@ -149,17 +149,17 @@ contract Vat {
         dai[w]    = add(dai[w], mul(ilk.rate, dart));
         debt      = add(debt,   mul(ilk.rate, dart));
 
-        bool cool = dart <= 0;
-        bool firm = dink >= 0;
-        bool nice = cool && firm;
-        bool calm = mul(ilk.Art, ilk.rate) <= ilk.line && debt <= Line;
-        bool safe = mul(urn.art, ilk.rate) <= mul(urn.ink, ilk.spot);
+        bool isCdpDaiDebtNonIncreasing = dart <= 0;
+        bool isCdpCollateralBalanceNonDecreasing = dink >= 0;
+        bool nice = isCdpDaiDebtNonIncreasing && isCdpCollateralBalanceNonDecreasing;
+        bool isCdpBelowCollateralAndTotalDebtCeilings = mul(ilk.Art, ilk.rate) <= ilk.line && debt <= Line;
+        bool isCdpSafe = mul(urn.art, ilk.rate) <= mul(urn.ink, ilk.spot);
 
-        require((calm || cool) && (nice || safe));
+        require((isCdpBelowCollateralAndTotalDebtCeilings || isCdpDaiDebtNonIncreasing) && (nice || isCdpSafe));
 
         require(wish(u, msg.sender) ||  nice);
-        require(wish(v, msg.sender) || !firm);
-        require(wish(w, msg.sender) || !cool);
+        require(wish(v, msg.sender) || !isCdpCollateralBalanceNonDecreasing);
+        require(wish(w, msg.sender) || !isCdpDaiDebtNonIncreasing);
 
         require(mul(urn.art, ilk.rate) >= ilk.dust || urn.art == 0);
         require(ilk.rate != 0);
@@ -202,7 +202,7 @@ contract Vat {
     }
 
     // --- Settlement ---
-    function heal(address u, address v, int rad) public note auth {
+    function settleDebtUsingSurplus(address u, address v, int rad) public note auth {
         sin[u] = sub(sin[u], rad);
         dai[v] = sub(dai[v], rad);
         vice   = sub(vice,   rad);

@@ -3,7 +3,7 @@ pragma solidity >=0.5.0;
 import "ds-test/test.sol";
 import {DSToken} from "ds-token/token.sol";
 
-import {Flapper} from "../flap.sol";
+import {DaiForMkrSurplusAuction} from "../flap.sol";
 
 
 contract Hevm {
@@ -11,28 +11,28 @@ contract Hevm {
 }
 
 contract Guy {
-    Flapper fuss;
-    constructor(Flapper fuss_) public {
+    DaiForMkrSurplusAuction fuss;
+    constructor(DaiForMkrSurplusAuction fuss_) public {
         fuss = fuss_;
         DSToken(address(fuss.dai())).approve(address(fuss));
         DSToken(address(fuss.gem())).approve(address(fuss));
     }
-    function tend(uint id, uint lot, uint bid) public {
-        fuss.tend(id, lot, bid);
+    function makeBidIncreaseBidSize(uint id, uint lot, uint bid) public {
+        fuss.makeBidIncreaseBidSize(id, lot, bid);
     }
-    function deal(uint id) public {
-        fuss.deal(id);
+    function claimWinningBid(uint id) public {
+        fuss.claimWinningBid(id);
     }
-    function try_tend(uint id, uint lot, uint bid)
+    function try_makeBidIncreaseBidSize(uint id, uint lot, uint bid)
         public returns (bool ok)
     {
-        string memory sig = "tend(uint256,uint256,uint256)";
+        string memory sig = "makeBidIncreaseBidSize(uint256,uint256,uint256)";
         (ok,) = address(fuss).call(abi.encodeWithSignature(sig, id, lot, bid));
     }
-    function try_deal(uint id)
+    function try_claimWinningBid(uint id)
         public returns (bool ok)
     {
-        string memory sig = "deal(uint256)";
+        string memory sig = "claimWinningBid(uint256)";
         (ok,) = address(fuss).call(abi.encodeWithSignature(sig, id));
     }
 }
@@ -49,7 +49,7 @@ contract VatLike is DSToken('') {
 contract FlapTest is DSTest {
     Hevm hevm;
 
-    Flapper fuss;
+    DaiForMkrSurplusAuction fuss;
     VatLike dai;
     DSToken gem;
 
@@ -64,7 +64,7 @@ contract FlapTest is DSTest {
         dai = new VatLike();
         gem = new DSToken('');
 
-        fuss = new Flapper(address(dai), address(gem));
+        fuss = new DaiForMkrSurplusAuction(address(dai), address(gem));
 
         ali = address(new Guy(fuss));
         bob = address(new Guy(fuss));
@@ -79,31 +79,31 @@ contract FlapTest is DSTest {
         gem.push(ali, 200 ether);
         gem.push(bob, 200 ether);
     }
-    function test_kick() public {
+    function test_startAuction() public {
         assertEq(dai.balanceOf(address(this)), 1000 ether);
         assertEq(dai.balanceOf(address(fuss)),    0 ether);
-        fuss.kick({ lot: 100 ether
+        fuss.startAuction({ lot: 100 ether
                   , gal: gal
                   , bid: 0
                   });
         assertEq(dai.balanceOf(address(this)),  900 ether);
         assertEq(dai.balanceOf(address(fuss)),  100 ether);
     }
-    function test_tend() public {
-        uint id = fuss.kick({ lot: 100 ether
+    function test_makeBidIncreaseBidSize() public {
+        uint id = fuss.startAuction({ lot: 100 ether
                             , gal: gal
                             , bid: 0
                             });
         // lot taken from creator
         assertEq(dai.balanceOf(address(this)), 900 ether);
 
-        Guy(ali).tend(id, 100 ether, 1 ether);
+        Guy(ali).makeBidIncreaseBidSize(id, 100 ether, 1 ether);
         // bid taken from bidder
         assertEq(gem.balanceOf(ali), 199 ether);
         // gal receives payment
         assertEq(gem.balanceOf(gal),   1 ether);
 
-        Guy(bob).tend(id, 100 ether, 2 ether);
+        Guy(bob).makeBidIncreaseBidSize(id, 100 ether, 2 ether);
         // bid taken from bidder
         assertEq(gem.balanceOf(bob), 198 ether);
         // prev bidder refunded
@@ -112,20 +112,20 @@ contract FlapTest is DSTest {
         assertEq(gem.balanceOf(gal),   2 ether);
 
         hevm.warp(5 weeks);
-        Guy(bob).deal(id);
+        Guy(bob).claimWinningBid(id);
         // bob gets the winnings
         assertEq(dai.balanceOf(address(fuss)),  0 ether);
         assertEq(dai.balanceOf(bob), 100 ether);
     }
     function test_beg() public {
-        uint id = fuss.kick({ lot: 100 ether
+        uint id = fuss.startAuction({ lot: 100 ether
                             , gal: gal
                             , bid: 0
                             });
-        assertTrue( Guy(ali).try_tend(id, 100 ether, 1.00 ether));
-        assertTrue(!Guy(bob).try_tend(id, 100 ether, 1.01 ether));
+        assertTrue( Guy(ali).try_makeBidIncreaseBidSize(id, 100 ether, 1.00 ether));
+        assertTrue(!Guy(bob).try_makeBidIncreaseBidSize(id, 100 ether, 1.01 ether));
         // high bidder is subject to beg
-        assertTrue(!Guy(ali).try_tend(id, 100 ether, 1.01 ether));
-        assertTrue( Guy(bob).try_tend(id, 100 ether, 1.07 ether));
+        assertTrue(!Guy(ali).try_makeBidIncreaseBidSize(id, 100 ether, 1.01 ether));
+        assertTrue( Guy(bob).try_makeBidIncreaseBidSize(id, 100 ether, 1.07 ether));
     }
 }
