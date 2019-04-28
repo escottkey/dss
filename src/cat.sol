@@ -21,7 +21,7 @@ pragma experimental ABIEncoderV2;
 import "./lib.sol";
 
 contract Flippy {
-    function startAuction(address urn, address incomeReceipient, uint tab, uint lot, uint bid)
+    function startAuction(address urn, address incomeRecipient, uint tab, uint lot, uint bid)
                 public returns (uint);
         }
 
@@ -155,7 +155,7 @@ contract Cat is DSNote {
         f.ink -= ink;
 
         id = Flippy(i.flip).startAuction({ urn: f.urn
-                                         , incomeReceipient: address(vow)
+                                         , incomeRecipient: address(vow)
                                          , tab: rmul(rad, i.liquidationPenalty)
                                          , lot: ink
                                          , bid: 0
