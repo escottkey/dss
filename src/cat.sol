@@ -23,7 +23,7 @@ import "./lib.sol";
 contract Flippy {
     function startAuction(address urn, address incomeRecipient, uint tab, uint lot, uint bid)
         public returns (uint);
-    }
+}
 
 contract VatLike {
     struct Ilk {
