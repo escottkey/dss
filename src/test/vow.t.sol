@@ -2,171 +2,171 @@ pragma solidity >=0.5.0;
 
 import "ds-test/test.sol";
 
-import {Flopper as Flop} from './flop.t.sol';
-import {Flapper as Flap} from './flap.t.sol';
-import {TestVat as  Vat} from './vat.t.sol';
-import {Vow}     from '../vow.sol';
+import {MkrForDaiDebtAuction} from './MkrForDaiDebtAuction.t.sol';
+import {DaiForMkrSurplusAuction} from './DaiForMkrSurplusAuction.t.sol';
+import {TestVat as  cdpDatabase} from './cdpDatabase.t.sol';
+import {Settlement}     from '../Settlement.sol';
 
 contract Hevm {
     function warp(uint256) public;
 }
 
-contract Gem {
+contract collateralTokens {
     mapping (address => uint256) public balanceOf;
-    function mint(address usr, uint rad) public {
-        balanceOf[usr] += rad;
+    function mint(address usr, uint fxp45Int) public {
+        balanceOf[usr] += fxp45Int;
     }
 }
 
 contract VowTest is DSTest {
     Hevm hevm;
 
-    Vat  vat;
-    Vow  vow;
-    Flop flop;
-    Flap flap;
-    Gem  gov;
+    cdpDatabase  cdpDatabase;
+    Settlement  Settlement;
+    MkrForDaiDebtAuction mkrForDaiDebtAuction;
+    DaiForMkrSurplusAuction daiForMkrSurplusAuction;
+    collateralTokens  gov;
 
     function setUp() public {
         hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
         hevm.warp(0);
 
-        vat = new Vat();
-        vow = new Vow();
-        vat.rely(address(vow));
-        gov  = new Gem();
+        cdpDatabase = new cdpDatabase();
+        Settlement = new Settlement();
+        cdpDatabase.authorizeAddress(address(Settlement));
+        gov  = new collateralTokens();
 
-        flop = new Flop(address(vat), address(gov));
-        flap = new Flap(address(vat), address(gov));
-        vat.hope(address(flop));
-        vat.rely(address(flop));
-        vat.rely(address(flap));
-        flop.rely(address(vow));
+        mkrForDaiDebtAuction = new MkrForDaiDebtAuction(address(cdpDatabase), address(gov));
+        daiForMkrSurplusAuction = new DaiForMkrSurplusAuction(address(cdpDatabase), address(gov));
+        cdpDatabase.hope(address(mkrForDaiDebtAuction));
+        cdpDatabase.authorizeAddress(address(mkrForDaiDebtAuction));
+        cdpDatabase.authorizeAddress(address(daiForMkrSurplusAuction));
+        mkrForDaiDebtAuction.authorizeAddress(address(Settlement));
 
-        vow.file("vat",  address(vat));
-        vow.file("flop", address(flop));
-        vow.file("flap", address(flap));
-        vow.file("bump", rad(100 ether));
-        vow.file("sump", rad(100 ether));
+        Settlement.changeConfig("cdpDatabase",  address(cdpDatabase));
+        Settlement.changeConfig("mkrForDaiDebtAuction", address(mkrForDaiDebtAuction));
+        Settlement.changeConfig("daiForMkrSurplusAuction", address(daiForMkrSurplusAuction));
+        Settlement.changeConfig("surplusAuctionLotSize", fxp45Int(100 ether));
+        Settlement.changeConfig("debtAuctionLotSize", fxp45Int(100 ether));
     }
 
-    function try_flog(uint48 era) internal returns (bool ok) {
-        string memory sig = "flog(uint48)";
-        (ok,) = address(vow).call(abi.encodeWithSignature(sig, era));
+    function try_removeDebtFromDebtQueue(uint48 era) internal returns (bool ok) {
+        string memory sig = "removeDebtFromDebtQueue(uint48)";
+        (ok,) = address(Settlement).call(abi.encodeWithSignature(sig, era));
     }
-    function try_flop() internal returns (bool ok) {
-        string memory sig = "flop()";
-        (ok,) = address(vow).call(abi.encodeWithSignature(sig));
+    function try_mkrForDaiDebtAuction() internal returns (bool ok) {
+        string memory sig = "mkrForDaiDebtAuction()";
+        (ok,) = address(Settlement).call(abi.encodeWithSignature(sig));
     }
-    function try_flap() internal returns (bool ok) {
-        string memory sig = "flap()";
-        (ok,) = address(vow).call(abi.encodeWithSignature(sig));
+    function try_daiForMkrSurplusAuction() internal returns (bool ok) {
+        string memory sig = "daiForMkrSurplusAuction()";
+        (ok,) = address(Settlement).call(abi.encodeWithSignature(sig));
     }
-    function try_dent(uint id, uint lot, uint bid) internal returns (bool ok) {
-        string memory sig = "dent(uint256,uint256,uint256)";
-        (ok,) = address(flop).call(abi.encodeWithSignature(sig, id, lot, bid));
+    function try_makeBidDecreaseLotSize(uint id, uint lot, uint bid) internal returns (bool ok) {
+        string memory sig = "makeBidDecreaseLotSize(uint256,uint256,uint256)";
+        (ok,) = address(mkrForDaiDebtAuction).call(abi.encodeWithSignature(sig, id, lot, bid));
     }
 
     uint constant ONE = 10 ** 27;
-    function rad(uint wad) internal pure returns (uint) {
-        return wad * ONE;
+    function fxp45Int(uint fxp18Int) internal pure returns (uint) {
+        return fxp18Int * ONE;
     }
 
-    function suck(address who, uint wad) internal {
-        vow.fess(rad(wad));
-        vat.init('');
-        vat.heal(address(vow), who, -int(rad(wad)));
+    function suck(address who, uint fxp18Int) internal {
+        Settlement.addDebtToDebtQueue(fxp45Int(fxp18Int));
+        cdpDatabase.createNewCollateralType('');
+        cdpDatabase.settleDebtUsingSurplus(address(Settlement), who, -int(fxp45Int(fxp18Int)));
     }
-    function flog(uint wad) internal {
-        suck(address(0), wad);  // suck dai into the zero address
-        vow.flog(uint48(now));
+    function removeDebtFromDebtQueue(uint fxp18Int) internal {
+        suck(address(0), fxp18Int);  // suck dai into the zero address
+        Settlement.removeDebtFromDebtQueue(uint48(now));
     }
-    function heal(uint wad) internal {
-        vow.heal(rad(wad));
-    }
-
-    function test_flog_wait() public {
-        assertEq(vow.wait(), 0);
-        vow.file('wait', uint(100 seconds));
-        assertEq(vow.wait(), 100 seconds);
-
-        uint48 tic = uint48(now);
-        vow.fess(100 ether);
-        assertTrue(!try_flog(tic) );
-        hevm.warp(tic + uint48(100 seconds));
-        assertTrue( try_flog(tic) );
+    function settleDebtUsingSurplus(uint fxp18Int) internal {
+        Settlement.settleDebtUsingSurplus(fxp45Int(fxp18Int));
     }
 
-    function test_no_reflop() public {
-        flog(100 ether);
-        assertTrue( try_flop() );
-        assertTrue(!try_flop() );
+    function test_removeDebtFromDebtQueue_debtQueueLength() public {
+        assertEq(Settlement.debtQueueLength(), 0);
+        Settlement.changeConfig('debtQueueLength', uint(100 seconds));
+        assertEq(Settlement.debtQueueLength(), 100 seconds);
+
+        uint48 expiryTime = uint48(now);
+        Settlement.addDebtToDebtQueue(100 ether);
+        assertTrue(!try_removeDebtFromDebtQueue(expiryTime) );
+        hevm.warp(expiryTime + uint48(100 seconds));
+        assertTrue( try_removeDebtFromDebtQueue(expiryTime) );
     }
 
-    function test_no_flop_pending_joy() public {
-        flog(200 ether);
-
-        vat.mint(address(vow), 100 ether);
-        assertTrue(!try_flop() );
-
-        heal(100 ether);
-        assertTrue( try_flop() );
+    function test_no_remkrForDaiDebtAuction() public {
+        removeDebtFromDebtQueue(100 ether);
+        assertTrue( try_mkrForDaiDebtAuction() );
+        assertTrue(!try_mkrForDaiDebtAuction() );
     }
 
-    function test_flap() public {
-        vat.mint(address(vow), 100 ether);
-        assertTrue( try_flap() );
+    function test_no_mkrForDaiDebtAuction_pending_joy() public {
+        removeDebtFromDebtQueue(200 ether);
+
+        cdpDatabase.mint(address(Settlement), 100 ether);
+        assertTrue(!try_mkrForDaiDebtAuction() );
+
+        settleDebtUsingSurplus(100 ether);
+        assertTrue( try_mkrForDaiDebtAuction() );
     }
 
-    function test_no_flap_pending_sin() public {
-        vow.file("bump", uint256(0 ether));
-        flog(100 ether);
-
-        vat.mint(address(vow), 50 ether);
-        assertTrue(!try_flap() );
-    }
-    function test_no_flap_nonzero_woe() public {
-        vow.file("bump", uint256(0 ether));
-        flog(100 ether);
-        vat.mint(address(vow), 50 ether);
-        assertTrue(!try_flap() );
-    }
-    function test_no_flap_pending_flop() public {
-        flog(100 ether);
-        vow.flop();
-
-        vat.mint(address(vow), 100 ether);
-
-        assertTrue(!try_flap() );
-    }
-    function test_no_flap_pending_kiss() public {
-        flog(100 ether);
-        uint id = vow.flop();
-
-        vat.mint(address(this), 100 ether);
-        flop.dent(id, 0 ether, rad(100 ether));
-
-        assertTrue(!try_flap() );
+    function test_daiForMkrSurplusAuction() public {
+        cdpDatabase.mint(address(Settlement), 100 ether);
+        assertTrue( try_daiForMkrSurplusAuction() );
     }
 
-    function test_no_surplus_after_good_flop() public {
-        flog(100 ether);
-        uint id = vow.flop();
-        vat.mint(address(this), 100 ether);
+    function test_no_daiForMkrSurplusAuction_pending_sin() public {
+        Settlement.changeConfig("surplusAuctionLotSize", uint256(0 ether));
+        removeDebtFromDebtQueue(100 ether);
 
-        flop.dent(id, 0 ether, rad(100 ether));  // flop succeeds..
+        cdpDatabase.mint(address(Settlement), 50 ether);
+        assertTrue(!try_daiForMkrSurplusAuction() );
+    }
+    function test_no_daiForMkrSurplusAuction_nonzero_woe() public {
+        Settlement.changeConfig("surplusAuctionLotSize", uint256(0 ether));
+        removeDebtFromDebtQueue(100 ether);
+        cdpDatabase.mint(address(Settlement), 50 ether);
+        assertTrue(!try_daiForMkrSurplusAuction() );
+    }
+    function test_no_daiForMkrSurplusAuction_pending_mkrForDaiDebtAuction() public {
+        removeDebtFromDebtQueue(100 ether);
+        Settlement.mkrForDaiDebtAuction();
 
-        assertTrue(!try_flap() );
+        cdpDatabase.mint(address(Settlement), 100 ether);
+
+        assertTrue(!try_daiForMkrSurplusAuction() );
+    }
+    function test_no_daiForMkrSurplusAuction_pending_settleOnAuctionDebtUsingSurplus() public {
+        removeDebtFromDebtQueue(100 ether);
+        uint id = Settlement.mkrForDaiDebtAuction();
+
+        cdpDatabase.mint(address(this), 100 ether);
+        mkrForDaiDebtAuction.makeBidDecreaseLotSize(id, 0 ether, fxp45Int(100 ether));
+
+        assertTrue(!try_mkrForDaiDebtAuction() );
     }
 
-    function test_multiple_flop_dents() public {
-        flog(100 ether);
-        uint id = vow.flop();
+    function test_no_surplus_after_good_mkrForDaiDebtAuction() public {
+        removeDebtFromDebtQueue(100 ether);
+        uint id = Settlement.mkrForDaiDebtAuction();
+        cdpDatabase.mint(address(this), 100 ether);
 
-        vat.mint(address(this), 100 ether);
-        assertTrue(try_dent(id, 2 ether,  rad(100 ether)));
+        mkrForDaiDebtAuction.makeBidDecreaseLotSize(id, 0 ether, fxp45Int(100 ether));  // mkrForDaiDebtAuction succeeds..
 
-        vat.mint(address(this), 100 ether);
-        assertTrue(try_dent(id, 1 ether,  rad(100 ether)));
+        assertTrue(!try_mkrForDaiDebtAuction() );
+    }
+
+    function test_multiple_mkrForDaiDebtAuction_makeBidDecreaseLotSizes() public {
+        removeDebtFromDebtQueue(100 ether);
+        uint id = Settlement.mkrForDaiDebtAuction();
+
+        cdpDatabase.mint(address(this), 100 ether);
+        assertTrue(try_makeBidDecreaseLotSize(id, 2 ether,  fxp45Int(100 ether)));
+
+        cdpDatabase.mint(address(this), 100 ether);
+        assertTrue(try_makeBidDecreaseLotSize(id, 1 ether,  fxp45Int(100 ether)));
     }
 }

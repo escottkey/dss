@@ -2,9 +2,9 @@
 
 // Copyright (C) 2015-2019  DappHub, LLC
 
-// This program is free software: you can redistribute it and/or modify
+// This program is transferCollateralFromCDP software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
+// the transferCollateralFromCDP Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
 // This program is distributed in the hope that it will be useful,
@@ -61,23 +61,23 @@ contract TokenUser {
         return token.balanceOf(who);
     }
 
-    function doApprove(address guy)
+    function doApprove(address addr)
         public
         returns (bool)
     {
-        return token.approve(guy, uint(-1));
+        return token.approve(addr, uint(-1));
     }
-    function doMint(uint wad) public {
-        token.mint(address(this), wad);
+    function doMint(uint fxp18Int) public {
+        token.mint(address(this), fxp18Int);
     }
-    function doBurn(uint wad) public {
-        token.burn(address(this), wad);
+    function doBurn(uint fxp18Int) public {
+        token.burn(address(this), fxp18Int);
     }
-    function doMint(address guy, uint wad) public {
-        token.mint(guy, wad);
+    function doMint(address addr, uint fxp18Int) public {
+        token.mint(addr, fxp18Int);
     }
-    function doBurn(address guy, uint wad) public {
-        token.burn(guy, wad);
+    function doBurn(address addr, uint fxp18Int) public {
+        token.burn(addr, fxp18Int);
     }
 
 }
@@ -174,7 +174,7 @@ contract DaiTest is DSTest {
         token.transferFrom(user1, self, 1);
     }
 
-    function testFailChargeMoreThanApproved() public logs_gas {
+    function testFailCharcollateralTokensoreThanApproved() public logs_gas {
         token.transfer(user1, 50);
         TokenUser(user1).doApprove(self, 20);
         token.transferFrom(user1, self, 21);
@@ -193,16 +193,16 @@ contract DaiTest is DSTest {
         token.mint(address(this), mintAmount);
         assertEq(token.balanceOf(self), initialBalanceThis + mintAmount);
     }
-    function testMintGuy() public {
+    function testMintaddr() public {
         uint mintAmount = 10;
         token.mint(user1, mintAmount);
         assertEq(token.balanceOf(user1), mintAmount);
     }
-    function testFailMintGuyNoAuth() public {
+    function testFailMintaddrNoisAuthorized() public {
         TokenUser(user1).doMint(user2, 10);
     }
-    function testMintGuyAuth() public {
-        token.rely(user1);
+    function testMintaddrisAuthorized() public {
+        token.authorizeAddress(user1);
         TokenUser(user1).doMint(user2, 10);
     }
 
@@ -216,7 +216,7 @@ contract DaiTest is DSTest {
         token.burn(address(this), burnAmount);
         assertEq(token.balanceOf(self), initialBalanceThis - burnAmount);
     }
-    function testBurnGuyWithTrust() public {
+    function testBurnaddrWithTrust() public {
         uint burnAmount = 10;
         token.transfer(user1, burnAmount);
         assertEq(token.balanceOf(user1), burnAmount);
@@ -225,14 +225,14 @@ contract DaiTest is DSTest {
         token.burn(user1, burnAmount);
         assertEq(token.balanceOf(user1), 0);
     }
-    function testBurnAuth() public {
+    function testBurnisAuthorized() public {
         token.transfer(user1, 10);
-        token.rely(user1);
+        token.authorizeAddress(user1);
         TokenUser(user1).doBurn(10);
     }
-    function testBurnGuyAuth() public {
+    function testBurnaddrisAuthorized() public {
         token.transfer(user2, 10);
-        //        token.rely(user1);
+        //        token.authorizeAddress(user1);
         TokenUser(user2).doApprove(user1);
         TokenUser(user1).doBurn(user2, 10);
     }

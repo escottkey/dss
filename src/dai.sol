@@ -1,5 +1,7 @@
 // Copyright (C) 2017, 2018, 2019 dbrock, rain, mrchico
 
+// Copyright (C) 2018 Rain <rainbreak@riseup.net>
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -16,11 +18,11 @@
 pragma solidity >=0.4.24;
 
 contract Dai {
-    // --- Auth ---
-    mapping (address => uint) public wards;
-    function rely(address guy) public auth { wards[guy] = 1; }
-    function deny(address guy) public auth { wards[guy] = 0; }
-    modifier auth { require(wards[msg.sender] == 1); _; }
+    // --- isAuthorized ---
+    mapping (address => uint) public authenticatedAddresss;
+    function authorizeAddress(address addr) public isAuthorized { authenticatedAddresss[addr] = 1; }
+    function deauthorizeAddress(address addr) public isAuthorized { authenticatedAddresss[addr] = 0; }
+    modifier isAuthorized { require(authenticatedAddresss[msg.sender] == 1); _; }
 
     // --- ERC20 Data ---
     uint8   public decimals = 18;
@@ -33,8 +35,8 @@ contract Dai {
     mapping (address => mapping (address => uint)) public allowance;
     mapping (address => uint)                      public nonces;
 
-    event Approval(address indexed src, address indexed guy, uint wad);
-    event Transfer(address indexed src, address indexed dst, uint wad);
+    event Approval(address indexed src, address indexed addr, uint fxp18Int);
+    event Transfer(address indexed src, address indexed dst, uint fxp18Int);
 
     // --- Math ---
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -51,7 +53,7 @@ contract Dai {
     );
 
     constructor(string memory symbol_, string memory name_, string memory version_, uint256 chainId_) public {
-        wards[msg.sender] = 1;
+        authenticatedAddresss[msg.sender] = 1;
         symbol = symbol_;
         name = name_;
         DOMAIN_SEPARATOR = keccak256(abi.encode(
@@ -64,48 +66,48 @@ contract Dai {
     }
 
     // --- Token ---
-    function transfer(address dst, uint wad) public returns (bool) {
-        return transferFrom(msg.sender, dst, wad);
+    function transfer(address dst, uint fxp18Int) public returns (bool) {
+        return transferFrom(msg.sender, dst, fxp18Int);
     }
-    function transferFrom(address src, address dst, uint wad)
+    function transferFrom(address src, address dst, uint fxp18Int)
         public returns (bool)
     {
         if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
-            allowance[src][msg.sender] = sub(allowance[src][msg.sender], wad);
+            allowance[src][msg.sender] = sub(allowance[src][msg.sender], fxp18Int);
         }
-        balanceOf[src] = sub(balanceOf[src], wad);
-        balanceOf[dst] = add(balanceOf[dst], wad);
-        emit Transfer(src, dst, wad);
+        balanceOf[src] = sub(balanceOf[src], fxp18Int);
+        balanceOf[dst] = add(balanceOf[dst], fxp18Int);
+        emit Transfer(src, dst, fxp18Int);
         return true;
     }
-    function mint(address usr, uint wad) public auth {
-        balanceOf[usr] = add(balanceOf[usr], wad);
-        totalSupply    = add(totalSupply, wad);
-        emit Transfer(address(0), usr, wad);
+    function mint(address usr, uint fxp18Int) public isAuthorized {
+        balanceOf[usr] = add(balanceOf[usr], fxp18Int);
+        totalSupply    = add(totalSupply, fxp18Int);
+        emit Transfer(address(0), usr, fxp18Int);
     }
-    function burn(address usr, uint wad) public {
+    function burn(address usr, uint fxp18Int) public {
         if (usr != msg.sender && allowance[usr][msg.sender] != uint(-1)) {
-            allowance[usr][msg.sender] = sub(allowance[usr][msg.sender], wad);
+            allowance[usr][msg.sender] = sub(allowance[usr][msg.sender], fxp18Int);
         }
-        balanceOf[usr] = sub(balanceOf[usr], wad);
-        totalSupply    = sub(totalSupply, wad);
-        emit Transfer(usr, address(0), wad);
+        balanceOf[usr] = sub(balanceOf[usr], fxp18Int);
+        totalSupply    = sub(totalSupply, fxp18Int);
+        emit Transfer(usr, address(0), fxp18Int);
     }
-    function approve(address usr, uint wad) public returns (bool) {
-        allowance[msg.sender][usr] = wad;
-        emit Approval(msg.sender, usr, wad);
+    function approve(address usr, uint fxp18Int) public returns (bool) {
+        allowance[msg.sender][usr] = fxp18Int;
+        emit Approval(msg.sender, usr, fxp18Int);
         return true;
     }
 
     // --- Alias ---
-    function push(address usr, uint wad) public {
-        transferFrom(msg.sender, usr, wad);
+    function push(address usr, uint fxp18Int) public {
+        transferFrom(msg.sender, usr, fxp18Int);
     }
-    function pull(address usr, uint wad) public {
-        transferFrom(usr, msg.sender, wad);
+    function pull(address usr, uint fxp18Int) public {
+        transferFrom(usr, msg.sender, fxp18Int);
     }
-    function move(address src, address dst, uint wad) public {
-        transferFrom(src, dst, wad);
+    function move(address src, address dst, uint fxp18Int) public {
+        transferFrom(src, dst, fxp18Int);
     }
 
     // --- Approve by signature ---
@@ -126,8 +128,8 @@ contract Dai {
         require(holder == ecrecover(digest, v, r, s), "invalid permit");
         require(expiry == 0 || now <= expiry, "permit expired");
         require(nonce == nonces[holder]++, "invalid nonce");
-        uint wad = allowed ? uint(-1) : 0;
-        allowance[holder][spender] = wad;
-        emit Approval(holder, spender, wad);
+        uint fxp18Int = allowed ? uint(-1) : 0;
+        allowance[holder][spender] = fxp18Int;
+        emit Approval(holder, spender, fxp18Int);
     }
 }

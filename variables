@@ -1,83 +1,94 @@
-guy: some address
-wad: some quantity of tokens
-ray: a fixed point integer, usually given by 10^27 decimal places.
-file: administer some configuration value
-auth: check whether an address can call this method
-ward: an ahttps://github.com/joeykrug/dssddress that is allowed to call authed methods
-rely: allow an address to call authed methods
-deny: disallow an address from calling authed methods
+guy -> addr: some address
+wad -> fxp18Int: fixed point decimal with 18 decimals (for basic quantities, e.g. balances)
+ray -> fxp27Int: fixed point decimal with 27 decimals (for precise quantites, e.g. ratios)
+rad -> fxp45Int: fixed point decimal with 45 decimals (result of integer multiplication with a `wad` and a `ray`)
+file -> changeConfig: administer some configuration value
+auth -> isAuthorized: check whether an address can call this method
+ward -> authenticatedAddress: an address that is allowed to call authed methods
+rely -> authorizeAddress: allow an address to call authed methods
+deny -> deauthorizeAddress: disallow an address from calling authed methods
 CDP: Collateralised Debt Position
-gem: collateral tokens
+gem -> collateralTokens: collateral tokens
 dai: stablecoin tokens
-sin: anticoin tokens
-ilk: a collateral type
-rate: stablecoin debt multiplier (accumulated stability fees)
-take: collateral balance multiplier
-Ink: total collateral balance
-Art: total stablecoin debt
-init: create a new collateral type
-urn: a specific CDP
-ink: collateral balance
-art: stablecoin debt
-debt: the total quantity of stablecoin
-vice: the total quantity of anticoins
-slip: modify a user's collateral balance
-flux: transfer collateral between users
-move: transfer stablecoin between users
-grab: liquidate a CDP
-heal: create / destroy equal quantities of stablecoin and anticoin
-fold: modify the debt multiplier, creating / destroying corresponding debt
-toll: modify the collateral multiplier, creating / destroying corresponding collateral
-spot: collateral price with safety margin, i.e. the maximum stablecoin allowed per unit of collateral
-line: the debt ceiling for a specific collateral type
-Line: the total debt ceiling for all collateral types
-frob: modify a CDP
-lock: transfer collateral into a CDP
-free: transfer collateral from a CDP
-draw: increase CDP debt, creating Dai
-wipe: decrease CDP debt, destroying Dai
-dink: change in collateral
-dart: change in debt
-calm: true when the CDP remains under both collateral and total debt ceilings
-cool: true when the stablecoin debt does not increase
-firm: true when the collateral balance does not decrease
-safe: true when the CDP's ratio of collateral to debt is above the collateral's liquidation ratio
-tax: the stability fee
-repo: global stability fee
-rho: when this collateral type was last collected from
-drip: determine the increase
-chop: the liquidation penalty
-lump: the liquidation quantity, i.e. the fixed debt quantity to be covered by any one liquidation event
-bite: initiate liquidation of a CDP
-flip: liquidate collateral from a CDP to cover a fixed quantity of debt
-sin: the debt queue
-Sin: the total debt in the queue
-Woe: the total non-queued non-auction debt
-Ash: the total on-auction debt
-Awe: the total debt
-Joy: the total surplus
-fess: add debt to the queue
-flog: realise debt from the queue
-wait: length of the queue
-heal: cancel out surplus and debt
-kiss: cancel out surplus and on-auction debt
-sump: debt auction lot size, i.e. the fixed debt quantity to be covered by any one debt auction
-bump: surplus auction lot size, i.e. the fixed surplus quantity to be sold by any one surplus auction
-hump: surplus buffer, must be exceeded before surplus auctions are possible
-flip: collateral auction (selling collateral for stablecoins)
-flop: debt auction (covering debt by inflating MKR and selling for stablecoins)
-flap: surplus auction (selling stablecoins for MKR)
+sin -> badDebt: anticoin tokens
+ilk -> collateralType: a collateral type
+rate -> debtMultiplierIncludingStabilityFee: stablecoin debt multiplier (accumulated stability fees)
+Ink -> totalCollateralBalance: total collateral balance
+Art -> totalStablecoinDebt: total stablecoin debt
+init -> createNewCollateralType: create a new collateral type
+urn -> cdp: a specific CDP
+ink -> collateralBalance: collateral balance
+art -> stablecoinDebt: stablecoin debt
+debt -> stablecoinSupply: the total quantity of stablecoin
+vice -> badDebtSupply: the total quantity of anticoins
+slip -> modifyUsersCollateralBalance: modify a user's collateral balance
+flux -> transferCollateral: transfer collateral between users
+move -> move: transfer stablecoin between users
+grab -> liquidateCDP: liquidate a CDP
+fold -> changeDebtMultiplier: modify the debt multiplier, creating / destroying corresponding debt
+toll -> changeCollateralMultiplier: modify the collateral multiplier, creating / destroying corresponding collateral
+spot -> maxDaiPerUnitOfCollateral: collateral price with safety margin, i.e. the maximum stablecoin allowed per unit of collateral
+line -> debtCeiling: the debt ceiling for a specific collateral type
+Line -> totalDebtCeiling: the total debt ceiling for all collateral types
+frob -> modifyCDP: modify a CDP
+lock -> transferCollateralToCDP: transfer collateral into a CDP
+free -> transferCollateralFromCDP: transfer collateral from a CDP
+draw -> increaseCDPDebt: increase CDP debt, creating Dai
+wipe -> decreaseCDPDebt: decrease CDP debt, destroying Dai
+dink -> changeInCollateral: change in collateral
+dart -> changeInDebt: change in debt
+calm -> isCdpBelowCollateralAndTotalDebtCeilings: true when the CDP remains under both collateral and total debt ceilings
+cool -> isCdpDaiDebtNonIncreasing: true when the stablecoin debt does not increase
+firm -> isCdpCollateralBalanceNonDecreasing: true when the collateral balance does not decrease
+safe -> isCdpSafe: true when the CDP's ratio of collateral to debt is above the collateral's liquidation ratio
+rho -> collateralTypeLastStabilityFeeCollectionTimestamp: when this collateral type was last collected from
+drip -> increaseStabilityFee: determine the increase
+chop -> liquidationPenalty: the liquidation penalty
+lump -> liquidationQuantity: the liquidation quantity, i.e. the fixed debt quantity to be covered by any one liquidation event
+bite -> liquidateCdp: initiate liquidation of a CDP
+Bite -> LiquidateCdp
+sin -> badDebtQueue: the debt queue
+Sin -> TotalDebtInDebtQueue: the total debt in the queue
+Woe -> TotalNonQueuedNonAuctionDebt: the total non-queued non-auction debt
+Ash -> TotalOnAuctionDebt: the total on-auction debt
+Awe -> TotalDebt: the total debt
+Joy -> TotalSurplus: the total surplus
+fess -> addDebtToDebtQueue: add debt to the queue
+flog -> removeDebtFromDebtQueue: realise debt from the queue
+wait -> debtQueueLength: length of the queue
+heal -> settleDebtUsingSurplus: cancel out surplus and debt
+kiss -> settleOnAuctionDebtUsingSurplus: cancel out surplus and on-auction debt
+sump -> debtAuctionLotSize: debt auction lot size, i.e. the fixed debt quantity to be covered by any one debt auction
+bump -> surplusAuctionLotSize: surplus auction lot size, i.e. the fixed surplus quantity to be sold by any one surplus auction
+hump -> surplusAuctionBuffer: surplus buffer, must be exceeded before surplus auctions are possible
+CollateralForDaiAuctionper -> CollateralForDaiAuction
+MkrForDaiDebtAuction -> mkrForDaiDebtAuction: debt auction (covering debt by inflating MKR and selling for stablecoins)
+MkrForDaiDebtAuctionper -> MkrForDaiDebtAuction
+DaiForMkrSurplusAuction -> daiForMkrSurplusAuction: surplus auction (selling stablecoins for MKR)
+DaiForMkrSurplusAuctionper -> DaiForMkrSurplusAuction
 lot: quantity up for auction
 bid: quantity being offered for the lot
-tab: total dai to be raised (in flip auction)
-guy: high bidder
-gal: recipient of auction income
+debtPlusStabilityFee / totalDaiWanted: total dai to be raised (in CollateralForDaiAuction auction)
+gal -> incomeRecipient: recipient of auction income
 ttl: bid lifetime
-beg: minimum bid increase
-tau: maximum auction duration
-end: when the auction will finish
-kick: start an auction
-tick: restart an auction
-tend: make a bid, increasing the bid size
-dent: make a bid, decreaseing the lot size
-deal: claim a winning bid
+beg -> minimumBidIncrease: minimum bid increase
+tau -> maximumAuctionDuration: maximum auction duration
+end -> auctionEndTimestamp: when the auction will finish
+kick -> startAuction: start an auction
+Kick -> StartAuction
+tick -> restartAuction: restart an auction
+tend -> makeBidIncreaseBidSize: make a bid, increasing the bid size
+dent -> makeBidDecreaseLotSize: make a bid, decreasing the lot size
+deal -> claimWinningBid: claim a winning bid
+vat -> cdpDatabase
+VatLike -> cdpDatabaseInterface
+jug -> stabilityFeeDatabase
+Fusspot -> AuctionInterface
+vow -> settlement
+addr -> highBidder: high bidder
+CollateralForDaiAuction -> collateralForDaiAuction: collateral auction (selling collateral for stablecoins)
+Hopeful -> ApprovalInterface
+fuss -> auction
+quantity of debt
+[UNUSED] tax -> stabilityFee: the stability fee
+[UNUSED] repo -> globalStabilityFee: global stability fee
