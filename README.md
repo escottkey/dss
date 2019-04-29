@@ -1,4 +1,4 @@
-# Multi Collateral Dai
+# Multi Collateral Dai [in plain English]
 
 This repository contains the core smart contract code for Multi
 Collateral Dai. This is a high level description of the system, assuming
