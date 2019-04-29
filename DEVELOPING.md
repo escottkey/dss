@@ -11,41 +11,41 @@ previous iteration of Dai was called Single Collateral Dai (SCD), or
 
 - dapp.tools
 - solc v0.4.24
-- tests use ds-test and are in files ending .t.sol
+- tests use ds-test and are in changeConfigs ending .t.sol
 
 
 ## Units
 
-Dai has three different numerical units: `wad`, `ray` and `rad`
+Dai has three different numerical units: `fxp18Int`, `fxp27Int` and `fxp45Int`
 
-- `wad`: fixed point decimal with 18 decimals (for basic quantities, e.g. balances)
-- `ray`: fixed point decimal with 27 decimals (for precise quantites, e.g. ratios)
-- `rad`: fixed point decimal with 45 decimals (result of integer multiplication with a `wad` and a `ray`)
+- `fxp18Int`: fixed point decimal with 18 decimals (for basic quantities, e.g. balances)
+- `fxp27Int`: fixed point decimal with 27 decimals (for precise quantites, e.g. ratios)
+- `fxp45Int`: fixed point decimal with 45 decimals (result of integer multiplication with a `fxp18Int` and a `fxp27Int`)
 
-`wad` and `ray` units will be familiar from SCD. `rad` is a new unit and
+`fxp18Int` and `fxp27Int` units will be familiar from SCD. `fxp45Int` is a new unit and
 exists to prevent precision loss in the core CDP engine.
 
-The base of `ray` is `ONE = 10 ** 27`.
+The base of `fxp27Int` is `ONE = 10 ** 27`.
 
 A good explanation of fixed point arithmetic can be found at [Wikipedia](https://en.wikipedia.org/wiki/Fixed-point_arithmetic).
 
 ## Multiplication
 
-Generally, `wad` should be used additively and `ray` should be used
-multiplicatively. It usually doesn't make sense to multiply a `wad` by a
-`wad` (or a `rad` by a `rad`).
+Generally, `fxp18Int` should be used additively and `fxp27Int` should be used
+multiplicatively. It usually doesn't make sense to multiply a `fxp18Int` by a
+`fxp18Int` (or a `fxp45Int` by a `fxp45Int`).
 
 Two multiplaction operators are used in `dss`:
 
 - `mul`: standard integer multiplcation. No loss of precision.
-- `rmul`: used for multiplications involving `ray`'s. Precision is lost.
+- `rmul`: used for multiplications involving `fxp27Int`'s. Precision is lost.
 
 They can only be used sensibly with the following combination of units:
 
-- `mul(wad, ray) -> rad`
-- `rmul(wad, ray) -> wad`
-- `rmul(ray, ray) -> ray`
-- `rmul(rad, ray) -> rad`
+- `mul(fxp18Int, fxp27Int) -> fxp45Int`
+- `rmul(fxp18Int, fxp27Int) -> fxp18Int`
+- `rmul(fxp27Int, fxp27Int) -> fxp27Int`
+- `rmul(fxp45Int, fxp27Int) -> fxp45Int`
 
 ## Code style
 
@@ -69,109 +69,108 @@ the considerations that make this code look like it does:
 
 ## CDP Engine
 
-The core CDP, Dai, and collateral state is kept in the `Vat`. This
+The core CDP, Dai, and collateral state is kept in the `cdpDatabase`. This
 contract has no external dependencies and maintains the central
 "Accounting Invariants" of Dai.
 
 Dai cannot exist without collateral:
 
-- An `ilk` is a particular type of collateral.
-- Collateral `gem` is assigned to users with `slip`.
-- Collateral `gem` is transferred between users with `flux`.
+- An `collateralType` is a particular type of collateral.
+- Collateral `collateralTokens` is assigned to users with `modifyUsersCollateralBalance`.
+- Collateral `collateralTokens` is transferred between users with `transferCollateral`.
 
-The CDP data structure is the `Urn`:
+The CDP data structure is the `cdp`:
 
-- it has `ink` encumbered collateral
-- it has `art` encumbered debt
+- it has `collateralBalance` encumbered collateral
+- it has `stablecoinDebt` encumbered stablecoinSupply
 
-Similarly, a collateral `Ilk`:
+Similarly, a collateral `collateralType`:
 
-- it has `Ink` encumbered collateral
-- it has `Art` encumbered debt
+- it has `totalCollateralBalance` encumbered collateral
+- it has `totalStablecoinDebt` encumbered stablecoinSupply
 - it has `take` collateral scaling factor (discussed further below)
-- it has `rate` debt scaling factor (discussed further below)
+- it has `debtMultiplierIncludingStabilityFee` stablecoinSupply scaling factor (discussed further below)
 
 Here, "encumbered" means "locked in a CDP".
 
-CDPs are managed via `tune(i, u, v, w, dink, dart)`, which modifies the
-CDP of user `u`, using `gem` from user `v` and creating `dai` for user
+CDPs are managed via `modifyCDP(i, u, v, w, changeInCollateral, changeInDebt)`, which modifies the
+CDP of user `u`, using `collateralTokens` from user `v` and creating `dai` for user
 `w`.
 
-CDPs are confiscated via `grab(i, u, v, w, dink, dart)`, which modifies
-the CDP of user `u`, giving `gem` to user `v` and creating `sin` for
-user `w`. `grab` is the means by which CDPs are liquidated, transferring
-debt from the CDP to a users `sin` balance.
+CDPs are confiscated via `liquidateCDP(i, u, v, w, changeInCollateral, changeInDebt)`, which modifies
+the CDP of user `u`, giving `collateralTokens` to user `v` and creating `badDebt` for
+user `w`. `liquidateCDP` is the means by which CDPs are liquidated, transferring
+stablecoinSupply from the CDP to a users `badDebt` balance.
 
-Sin represents "seized" or "bad" debt and can be cancelled out with an
-equal quantity of Dai using `heal(u, v, rad)`: take `sin` from `u` and
+badDebt represents "seized" or "bad" stablecoinSupply and can be cancelled out with an
+equal quantity of Dai using `heal(u, v, fxp45Int)`: take `badDebt` from `u` and
 `dai` from `v`.
 
 Note that `heal` can also be used to *create* Dai, balanced by an equal
-quantity of Sin.
+quantity of badDebt.
 
 Finally, the quantity `dai` can be transferred between users with `move`.
 
 ### Identifiers
 
-The above discusses "users", but really the `Vat` does not have a
+The above discusses "users", but really the `cdpDatabase` does not have a
 notion of "addresses" or "users", and just assigns internal values to
-`bytes32` identifiers. The operator of the `Vat` is free to use any
+`bytes32` identifiers. The operator of the `cdpDatabase` is transferCollateralFromCDP to use any
 scheme they like to manage these identifiers. A simple scheme
 is to give an ethereum address control over any identifier that has the
 address as the last 20 bytes.
 
 
-### Rates
+### debtMultiplierIncludingStabilityFee
 
-The ilk quantities `take` and `rate` define the ratio of exchange
-between un-encumbered and encumbered Collateral and Debt respectively.
+The collateralType quantities `take` and `debtMultiplierIncludingStabilityFee` define the ratio of exchange
+between un-encumbered and encumbered Collateral and stablecoinSupply respectively.
 
-These quantitites allow for manipulations collateral and debt balances
-across a whole Ilk.
+These quantitites allow for manipulations collateral and stablecoinSupply balances
+across a whole collateralType.
 
-Collateral can be seized or injected into an ilk using `toll(i, u, take)`,
-which decreases the `gem` balance of the user `u` by increasing the
-encumbered collateral balance of all urns in the ilk by the ratio
+Collateral can be seized or injected into an collateralType using `changeCollateralMultiplier(i, u, take)`,
+which decreases the `collateralTokens` balance of the user `u` by increasing the
+encumbered collateral balance of all cdps in the collateralType by the ratio
 `take`.
 
-Debt can be seized or injected into an ilk using `fold(i, u, rate)`,
+stablecoinSupply can be seized or injected into an collateralType using `changeDebtMultiplier(i, u, debtMultiplierIncludingStabilityFee)`,
 which increases the `dai` balance of the user `u` by increasing the
-encumbered debt balance of all urns in the ilk by the ratio `rate`.
+encumbered stablecoinSupply balance of all cdps in the collateralType by the ratio `debtMultiplierIncludingStabilityFee`.
 
 The practical use of these mechanisms is in applying stability fees and
 seizing collateral in the case of global settlement.
 
 ## CDP Interface
 
-The `Vat` is unsuitable for use by untrusted actors. External
-users can manage their CDP using the `Pit` ("trading pit").
+The `cdpDatabase` is unsuitable for use by untrusted actors. External
+users can manage their CDP using the `Pit` ("tfxp45Inting pit").
 
-The `Pit` contains risk parameters for each `ilk`:
+The `Pit` contains risk parameters for each `collateralType`:
 
-- `spot`: the maximum amount of Dai drawn per unit collateral
-- `line`: the maximum total Dai drawn
+- `maxDaiPerUnitOfCollateral`: the maximum amount of Dai drawn per unit collateral
+- `debtCeiling`: the maximum total Dai drawn
 
 And a global risk parameter:
 
-- `Line`: the maximum total Dai drawn across all ilks
+- `totalDebtCeiling`: the maximum total Dai drawn across all collateralTypes
 
 The `Pit` exposes one public function:
 
-- `frob(ilk, dink, dart)`: manipulate the callers CDP in the given `ilk`
-  by `dink` and `dart`, subject to the risk parameters
+- `modifyCDP(collateralType, changeInCollateral, changeInDebt)`: manipulate the callers CDP in the given `collateralType`
+  by `changeInCollateral` and `changeInDebt`, subject to the risk parameters
 
 ## Liquidation Interface
 
-The companion to CDP management is CDP liquidation, which is defined via
-the `Cat`.
+The companion to CDP management is CDP liquidation, which is defined via the Liquidation.
 
-The `Cat` contains liquidation parameters for each `ilk`:
+The `Liquidation` contains liquidation parameters for each `collateralType`:
 
-- `flip`: the address of the collateral liquidator
+- `collateralForDaiAuction`: the address of the collateral liquidator
 - `chop`: the liquidation penalty
 - `lump`: the liquidation quantity
 
-The `Cat` exposes two public functions
+The `Liquidation` exposes two public functions
 
-- `bite(ilk, urn)`: mark a specific CDP for liquidation
-- `flip(n, wad)`: initiate liquidation
+- `bite(collateralType, cdp)`: mark a specific CDP for liquidation
+- `collateralForDaiAuction(n, fxp18Int)`: initiate liquidation

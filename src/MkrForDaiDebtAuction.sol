@@ -1,4 +1,4 @@
-/// flop.sol -- Debt auction
+/// MkrForDaiDebtAuction.sol -- stablecoinSupply auction
 
 // Copyright (C) 2018 Rain <rainbreak@riseup.net>
 //
@@ -22,14 +22,14 @@ import "./lib.sol";
 contract DaiLike {
     function move(address,address,uint) public;
 }
-contract GemLike {
+contract mkrTokensLike {
     function mint(address,uint) public;
 }
 
 /*
-   This thing creates gems on demand in return for dai.
+   This thing creates maker on demand in return for dai.
 
- - `lot` gems for sale
+ - `lot` mkrTokens for sale
  - `bid` dai paid
  - `incomeRecipient` receives dai income
  - `ttl` single bid lifetime
@@ -38,26 +38,26 @@ contract GemLike {
 */
 
 contract MkrForDaiDebtAuction is DSNote {
-    // --- Auth ---
-    mapping (address => uint) public wards;
-    function rely(address usr) public note auth { wards[usr] = 1; }
-    function deny(address usr) public note auth { wards[usr] = 0; }
-    modifier auth { require(wards[msg.sender] == 1); _; }
+    // --- isAuthorized ---
+    mapping (address => uint) public authenticatedAddresss;
+    function authorizeAddress(address usr) public note isAuthorized { authenticatedAddresss[usr] = 1; }
+    function deauthorizeAddress(address usr) public note isAuthorized { authenticatedAddresss[usr] = 0; }
+    modifier isAuthorized { require(authenticatedAddresss[msg.sender] == 1); _; }
 
     // --- Data ---
     struct Bid {
         uint256 bid;
         uint256 lot;
         address highBidder;  // high bidder
-        uint48  tic;  // expiry time
+        uint48  expiryTime;  // expiry time
         uint48  auctionEndTimestamp;
-        address vow;
+        address Settlement;
     }
 
     mapping (uint => Bid) public bids;
 
     DaiLike  public   dai;
-    GemLike  public   gem;
+    mkrTokensLike  public   mkrTokens;
 
     uint256  constant ONE = 1.00E27;
     uint256  public   beg = 1.05E27;  // 5% minimum bid increase
@@ -74,10 +74,10 @@ contract MkrForDaiDebtAuction is DSNote {
     );
 
     // --- Init ---
-    constructor(address dai_, address gem_) public {
-        wards[msg.sender] = 1;
+    constructor(address dai_, address mkrTokens_) public {
+        authenticatedAddresss[msg.sender] = 1;
         dai = DaiLike(dai_);
-        gem = GemLike(gem_);
+        mkrTokens = mkrTokensLike(mkrTokens_);
     }
 
     // --- Math ---
@@ -89,11 +89,11 @@ contract MkrForDaiDebtAuction is DSNote {
     }
 
     // --- Auction ---
-    function startAuction(address incomeRecipient, uint lot, uint bid) public auth returns (uint id) {
+    function startAuction(address incomeRecipient, uint lot, uint bid) public isAuthorized returns (uint id) {
         require(startAuctions < uint(-1));
         id = ++startAuctions;
 
-        bids[id].vow = msg.sender;
+        bids[id].Settlement = msg.sender;
         bids[id].bid = bid;
         bids[id].lot = lot;
         bids[id].highBidder = incomeRecipient;
@@ -101,25 +101,27 @@ contract MkrForDaiDebtAuction is DSNote {
 
         emit StartAuction(id, lot, bid, incomeRecipient);
     }
+    
+    // lot is basically how many mkr you'd take for the dai available, lowest amount = highest bidder
     function makeBidDecreaseLotSize(uint id, uint lot, uint bid) public note {
         require(bids[id].highBidder != address(0));
-        require(bids[id].tic > now || bids[id].tic == 0);
+        require(bids[id].expiryTime > now || bids[id].expiryTime == 0);
         require(bids[id].auctionEndTimestamp > now);
 
         require(bid == bids[id].bid);
-        require(lot <  bids[id].lot);
+        require(lot < bids[id].lot);
         require(uint(mul(beg, lot)) / ONE <= bids[id].lot);  // div as lot can be huge
 
         dai.move(msg.sender, bids[id].highBidder, bid);
 
         bids[id].highBidder = msg.sender;
         bids[id].lot = lot;
-        bids[id].tic = add(uint48(now), ttl);
+        bids[id].expiryTime = add(uint48(now), ttl);
     }
     function claimWinningBid(uint id) public note {
-        require(bids[id].tic < now && bids[id].tic != 0 ||
+        require(bids[id].expiryTime < now && bids[id].expiryTime != 0 ||
                 bids[id].auctionEndTimestamp < now);
-        gem.mint(bids[id].highBidder, bids[id].lot);
+        mkrTokens.mint(bids[id].highBidder, bids[id].lot);
         delete bids[id];
     }
 }

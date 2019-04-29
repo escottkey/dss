@@ -1,4 +1,4 @@
-/// flip.sol -- Collateral auction
+/// collateralForDaiAuction.sol -- Collateral auction
 
 // Copyright (C) 2018 Rain <rainbreak@riseup.net>
 //
@@ -19,20 +19,20 @@ pragma solidity >=0.5.0;
 
 import "./lib.sol";
 
-contract VatLike {
+contract cdpDatabaseInterface {
     function move(address,address,uint) public;
-    function flux(bytes32,address,address,uint) public;
+    function transferCollateral(bytes32,address,address,uint) public;
 }
 
 /*
-   This thing lets you flip some gems for a given amount of dai.
-   Once the given amount of dai is raised, gems are forgone instead.
+   This thing lets you sell some collateralTokens for a given amount of dai.
+   Once the given amount of dai is raised, collateralTokens are forgone instead.
 
- - `lot` gems for sale
+ - `lot` collateralTokens for sale
  - `totalDaiWanted` total dai wanted
  - `bid` dai paid
  - `incomeRecipient` receives dai income
- - `urn` receives gem forgone
+ - `cdp` receives collateralTokens forgone
  - `ttl` single bid lifetime
  - `beg` minimum bid increase
  - `auctionEndTimestamp` max auction duration
@@ -44,17 +44,17 @@ contract CollateralForDaiAuction is DSNote {
         uint256 bid;
         uint256 lot;
         address highBidder;  // high bidder
-        uint48  tic;  // expiry time
+        uint48  expiryTime;  // expiry time
         uint48  auctionEndTimestamp;
-        address urn;
+        address cdp;
         address incomeRecipient;
         uint256 totalDaiWanted;
     }
 
     mapping (uint => Bid) public bids;
 
-    VatLike public   vat;
-    bytes32 public   ilk;
+    cdpDatabaseInterface public   cdpDatabase;
+    bytes32 public   collateralType;
 
     uint256 constant ONE = 1.00E27;
     uint256 public   beg = 1.05E27;  // 5% minimum bid increase
@@ -68,14 +68,14 @@ contract CollateralForDaiAuction is DSNote {
       uint256 lot,
       uint256 bid,
       uint256 totalDaiWanted,
-      address indexed urn,
+      address indexed cdp,
       address indexed incomeRecipient
     );
 
     // --- Init ---
-    constructor(address vat_, bytes32 ilk_) public {
-        vat = VatLike(vat_);
-        ilk = ilk_;
+    constructor(address vat_, bytes32 collateralType_) public {
+        cdpDatabase = cdpDatabaseInterface(vat_);
+        collateralType = collateralType_;
     }
 
     // --- Math ---
@@ -87,7 +87,7 @@ contract CollateralForDaiAuction is DSNote {
     }
 
     // --- Auction ---
-    function startAuction(address urn, address incomeRecipient, uint tab, uint lot, uint bid)
+    function startAuction(address cdp, address incomeRecipient, uint debtPlusStabilityFee, uint lot, uint bid)
         public note returns (uint id)
     {
         require(startAuctions < uint(-1));
@@ -97,56 +97,56 @@ contract CollateralForDaiAuction is DSNote {
         bids[id].lot = lot;
         bids[id].highBidder = msg.sender; // configurable??
         bids[id].auctionEndTimestamp = add(uint48(now), maximumAuctionDuration);
-        bids[id].urn = urn;
+        bids[id].cdp = cdp;
         bids[id].incomeRecipient = incomeRecipient;
-        bids[id].tab = tab;
+        bids[id].debtPlusStabilityFee = debtPlusStabilityFee;
 
-        vat.flux(ilk, msg.sender, address(this), lot);
+        cdpDatabase.transferCollateral(collateralType, msg.sender, address(this), lot);
 
-        emit StartAuction(id, lot, bid, tab, urn, incomeRecipient);
+        emit StartAuction(id, lot, bid, debtPlusStabilityFee, cdp, incomeRecipient);
     }
     function restartAuction(uint id) public note {
         require(bids[id].auctionEndTimestamp < now);
-        require(bids[id].tic == 0);
+        require(bids[id].expiryTime == 0);
         bids[id].auctionEndTimestamp = add(uint48(now), maximumAuctionDuration);
     }
     function makeBidIncreaseBidSize(uint id, uint lot, uint bid) public note {
         require(bids[id].highBidder != address(0));
-        require(bids[id].tic > now || bids[id].tic == 0);
+        require(bids[id].expiryTime > now || bids[id].expiryTime == 0);
         require(bids[id].auctionEndTimestamp > now);
 
         require(lot == bids[id].lot);
-        require(bid <= bids[id].tab);
-        require(bid >  bids[id].bid);
-        require(mul(bid, ONE) >= mul(beg, bids[id].bid) || bid == bids[id].tab);
+        require(bid <= bids[id].debtPlusStabilityFee);
+        require(bid > bids[id].bid);
+        require(mul(bid, ONE) >= mul(beg, bids[id].bid) || bid == bids[id].debtPlusStabilityFee);
 
-        vat.move(msg.sender, bids[id].highBidder, bids[id].bid);
-        vat.move(msg.sender, bids[id].incomeRecipient, bid - bids[id].bid);
+        cdpDatabase.move(msg.sender, bids[id].highBidder, bids[id].bid);
+        cdpDatabase.move(msg.sender, bids[id].incomeRecipient, bid - bids[id].bid);
 
         bids[id].highBidder = msg.sender;
         bids[id].bid = bid;
-        bids[id].tic = add(uint48(now), ttl);
+        bids[id].expiryTime = add(uint48(now), ttl);
     }
     function makeBidDecreaseLotSize(uint id, uint lot, uint bid) public note {
         require(bids[id].highBidder != address(0));
-        require(bids[id].tic > now || bids[id].tic == 0);
+        require(bids[id].expiryTime > now || bids[id].expiryTime == 0);
         require(bids[id].auctionEndTimestamp > now);
 
         require(bid == bids[id].bid);
-        require(bid == bids[id].tab);
+        require(bid == bids[id].debtPlusStabilityFee);
         require(lot < bids[id].lot);
         require(mul(beg, lot) <= mul(bids[id].lot, ONE));
 
-        vat.move(msg.sender, bids[id].highBidder, bid);
-        vat.flux(ilk, address(this), bids[id].urn, bids[id].lot - lot);
+        cdpDatabase.move(msg.sender, bids[id].highBidder, bid);
+        cdpDatabase.transferCollateral(collateralType, address(this), bids[id].cdp, bids[id].lot - lot);
 
         bids[id].highBidder = msg.sender;
         bids[id].lot = lot;
-        bids[id].tic = add(uint48(now), ttl);
+        bids[id].expiryTime = add(uint48(now), ttl);
     }
     function claimWinningBid(uint id) public note {
-        require(bids[id].tic != 0 && (bids[id].tic < now || bids[id].auctionEndTimestamp < now));
-        vat.flux(ilk, address(this), bids[id].highBidder, bids[id].lot);
+        require(bids[id].expiryTime != 0 && (bids[id].expiryTime < now || bids[id].auctionEndTimestamp < now));
+        cdpDatabase.transferCollateral(collateralType, address(this), bids[id].highBidder, bids[id].lot);
         delete bids[id];
     }
 }

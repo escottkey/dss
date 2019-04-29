@@ -1,4 +1,4 @@
-/// flap.sol -- Surplus auction
+/// DaiForMkrSurplusAuction.sol -- Surplus auction
 
 // Copyright (C) 2018 Rain <rainbreak@riseup.net>
 //
@@ -22,16 +22,16 @@ import "./lib.sol";
 contract DaiLike {
     function move(address,address,uint) public;
 }
-contract GemLike {
+contract mkrTokensLike {
     function move(address,address,uint) public;
 }
 
 /*
-   This thing lets you sell some dai in return for gems.
+   This thing sells some dai in return for mkr. It's used to buy + then burn maker and is only done periodically
 
  - `lot` dai for sale
- - `bid` gems paid
- - `incomeRecipient` receives gem income
+ - `bid` mkrTokens paid
+ - `incomeRecipient` receives mkrTokens income
  - `ttl` single bid lifetime
  - `minimumBidIncrease` minimum bid increase
  - `auctionEndTimestamp` max auction duration
@@ -43,7 +43,7 @@ contract DaiForMkrSurplusAuction is DSNote {
         uint256 bid;
         uint256 lot;
         address highBidder;  // high bidder
-        uint48  tic;  // expiry time
+        uint48  expiryTime;  // expiry time
         uint48  auctionEndTimestamp;
         address incomeRecipient;
     }
@@ -51,7 +51,7 @@ contract DaiForMkrSurplusAuction is DSNote {
     mapping (uint => Bid) public bids;
 
     DaiLike  public   dai;
-    GemLike  public   gem;
+    mkrTokensLike  public   mkrTokens;
 
     uint256  constant ONE = 1.00E27;
     uint256  public   minimumBidIncrease = 1.05E27;  // 5% minimum bid increase
@@ -68,9 +68,9 @@ contract DaiForMkrSurplusAuction is DSNote {
     );
 
     // --- Init ---
-    constructor(address dai_, address gem_) public {
+    constructor(address dai_, address mkrTokens_) public {
         dai = DaiLike(dai_);
-        gem = GemLike(gem_);
+        mkrTokens = mkrTokensLike(mkrTokens_);
     }
 
     // --- Math ---
@@ -98,24 +98,26 @@ contract DaiForMkrSurplusAuction is DSNote {
 
         emit StartAuction(id, lot, bid, incomeRecipient);
     }
+
+    // Whoever bids / pays the most maker for the dai available wins
     function makeBidIncreaseBidSize(uint id, uint lot, uint bid) public note {
         require(bids[id].highBidder != address(0));
-        require(bids[id].tic > now || bids[id].tic == 0);
+        require(bids[id].expiryTime > now || bids[id].expiryTime == 0);
         require(bids[id].auctionEndTimestamp > now);
 
         require(lot == bids[id].lot);
-        require(bid >  bids[id].bid);
+        require(bid > bids[id].bid);
         require(mul(bid, ONE) >= mul(minimumBidIncrease, bids[id].bid));
 
-        gem.move(msg.sender, bids[id].highBidder, bids[id].bid);
-        gem.move(msg.sender, bids[id].incomeRecipient, bid - bids[id].bid);
+        mkrTokens.move(msg.sender, bids[id].highBidder, bids[id].bid);
+        mkrTokens.move(msg.sender, bids[id].incomeRecipient, bid - bids[id].bid);
 
         bids[id].highBidder = msg.sender;
         bids[id].bid = bid;
-        bids[id].tic = add(uint48(now), ttl);
+        bids[id].expiryTime = add(uint48(now), ttl);
     }
     function claimWinningBid(uint id) public note {
-        require(bids[id].tic < now && bids[id].tic != 0 ||
+        require(bids[id].expiryTime < now && bids[id].expiryTime != 0 ||
                 bids[id].auctionEndTimestamp < now);
         dai.move(address(this), bids[id].highBidder, bids[id].lot);
         delete bids[id];
