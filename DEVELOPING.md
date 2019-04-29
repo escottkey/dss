@@ -11,7 +11,7 @@ previous iteration of Dai was called Single Collateral Dai (SCD), or
 
 - dapp.tools
 - solc v0.4.24
-- tests use ds-test and are in changeConfigs ending .t.sol
+- tests use ds-test and are in files ending .t.sol
 
 
 ## Units
