@@ -82,14 +82,14 @@ Dai cannot exist without collateral:
 The CDP data structure is the `cdp`:
 
 - it has `collateralBalance` encumbered collateral
-- it has `stablecoinDebt` encumbered stablecoinSupply
+- it has `stablecoinDebt` encumbered debt
 
 Similarly, a collateral `collateralType`:
 
 - it has `totalCollateralBalance` encumbered collateral
-- it has `totalStablecoinDebt` encumbered stablecoinSupply
+- it has `totalStablecoinDebt` encumbered debt
 - it has `take` collateral scaling factor (discussed further below)
-- it has `debtMultiplierIncludingStabilityFee` stablecoinSupply scaling factor (discussed further below)
+- it has `debtMultiplierIncludingStabilityFee` debt scaling factor (discussed further below)
 
 Here, "encumbered" means "locked in a CDP".
 
@@ -100,9 +100,9 @@ CDP of user `u`, using `collateralTokens` from user `v` and creating `dai` for u
 CDPs are confiscated via `liquidateCDP(i, u, v, w, changeInCollateral, changeInDebt)`, which modifies
 the CDP of user `u`, giving `collateralTokens` to user `v` and creating `badDebt` for
 user `w`. `liquidateCDP` is the means by which CDPs are liquidated, transferring
-stablecoinSupply from the CDP to a users `badDebt` balance.
+debt from the CDP to a users `badDebt` balance.
 
-badDebt represents "seized" or "bad" stablecoinSupply and can be cancelled out with an
+badDebt represents "seized" or "bad" debt and can be cancelled out with an
 equal quantity of Dai using `heal(u, v, fxp45Int)`: take `badDebt` from `u` and
 `dai` from `v`.
 
@@ -124,9 +124,9 @@ address as the last 20 bytes.
 ### debtMultiplierIncludingStabilityFee
 
 The collateralType quantities `take` and `debtMultiplierIncludingStabilityFee` define the ratio of exchange
-between un-encumbered and encumbered Collateral and stablecoinSupply respectively.
+between un-encumbered and encumbered Collateral and debt respectively.
 
-These quantitites allow for manipulations collateral and stablecoinSupply balances
+These quantitites allow for manipulations collateral and debt balances
 across a whole collateralType.
 
 Collateral can be seized or injected into an collateralType using `changeCollateralMultiplier(i, u, take)`,
@@ -134,9 +134,9 @@ which decreases the `collateralTokens` balance of the user `u` by increasing the
 encumbered collateral balance of all cdps in the collateralType by the ratio
 `take`.
 
-stablecoinSupply can be seized or injected into an collateralType using `changeDebtMultiplier(i, u, debtMultiplierIncludingStabilityFee)`,
+debt can be seized or injected into an collateralType using `changeDebtMultiplier(i, u, debtMultiplierIncludingStabilityFee)`,
 which increases the `dai` balance of the user `u` by increasing the
-encumbered stablecoinSupply balance of all cdps in the collateralType by the ratio `debtMultiplierIncludingStabilityFee`.
+encumbered debt balance of all cdps in the collateralType by the ratio `debtMultiplierIncludingStabilityFee`.
 
 The practical use of these mechanisms is in applying stability fees and
 seizing collateral in the case of global settlement.
