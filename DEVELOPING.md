@@ -121,7 +121,7 @@ is to give an ethereum address control over any identifier that has the
 address as the last 20 bytes.
 
 
-### debtMultiplierIncludingStabilityFee
+### Rates
 
 The collateralType quantities `take` and `debtMultiplierIncludingStabilityFee` define the ratio of exchange
 between un-encumbered and encumbered Collateral and stablecoinSupply respectively.
